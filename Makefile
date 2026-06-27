@@ -24,6 +24,7 @@ build: ## 公開用ディレクトリ (public/) を生成
 	@rm -rf "$(PUBLIC_DIR)"
 	@mkdir -p "$(PUBLIC_DIR)"
 	@cp index.html "$(PUBLIC_DIR)/"
+	@cp manifest.webmanifest sw.js icon-192.png icon-512.png icon-maskable-512.png "$(PUBLIC_DIR)/"
 	@touch "$(PUBLIC_DIR)/.nojekyll"
 	@echo "built -> $(PUBLIC_DIR)/"
 
