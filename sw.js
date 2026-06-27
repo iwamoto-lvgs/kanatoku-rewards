@@ -10,7 +10,7 @@
  */
 'use strict';
 
-const CACHE = 'kanatoku-v2';
+const CACHE = 'kanatoku-v3';
 // プリキャッシュ対象。公開ファイルを足したら Makefile の build（public/ へコピーする一覧）と両方を更新する。
 const CORE = [
   './',
