@@ -362,10 +362,12 @@ function newForm(){
 
 /* データ全削除後の初期状態（既定ユーザー1名・記録なし）。
    users.length > 0 を満たすため、init() でサンプルデータが再シードされない。 */
+/* @test:data:start  freshData を test/data.test.js が抽出して検証する（genId はテスト側で注入）。 */
 function freshData(){
   const uid = genId('u');
   return { version:1, activeUserId:uid, users:[{ id:uid, name:'ユーザー' }], payments:[] };
 }
+/* @test:data:end */
 
 /* 初回シード（デザインリファレンス相当のサンプルデータ） */
 function seedData(){
