@@ -360,33 +360,14 @@ function newForm(){
   return { editingId:null, service:null, amount:'', rate:RATE_HIGH, date:todayISO(), memo:'' };
 }
 
-/* データ全削除後の初期状態（既定ユーザー1名・記録なし）。
-   users.length > 0 を満たすため、init() でサンプルデータが再シードされない。 */
+/* 初期状態（既定ユーザー1名・記録なし）。初回訪問時およびデータ全削除後に使う。
+   users.length > 0 を満たすため、init() で再度この初期状態に上書きされない。 */
 /* @test:data:start  freshData を test/data.test.js が抽出して検証する（genId はテスト側で注入）。 */
 function freshData(){
   const uid = genId('u');
   return { version:1, activeUserId:uid, users:[{ id:uid, name:'ユーザー' }], payments:[] };
 }
 /* @test:data:end */
-
-/* 初回シード（デザインリファレンス相当のサンプルデータ） */
-function seedData(){
-  const u1 = 'u_yuki', u2 = 'u_saki';
-  return {
-    version:1,
-    activeUserId:u1,
-    users:[ {id:u1, name:'ゆうき'}, {id:u2, name:'さき'} ],
-    payments:[
-      { id:'p1', userId:u1, service:'paypay',     amount:10000, rate:0.20, date:'2026-06-20', memo:'ドラッグストア' },
-      { id:'p2', userId:u1, service:'dpay',       amount:4000,  rate:0.20, date:'2026-06-21', memo:'カフェ' },
-      { id:'p3', userId:u1, service:'rakutenpay', amount:7500,  rate:0.20, date:'2026-06-23', memo:'飲食店' },
-      { id:'p4', userId:u1, service:'merpay',     amount:6000,  rate:0.20, date:'2026-06-24', memo:'雑貨店' },
-      { id:'p5', userId:u1, service:'aeonpay',    amount:1500,  rate:0.20, date:'2026-06-25', memo:'ベーカリー' },
-      { id:'p6', userId:u1, service:'merpay',     amount:5000,  rate:0.20, date:'2026-06-26', memo:'本屋' },
-      { id:'p7', userId:u1, service:'paypay',     amount:8000,  rate:0.20, date:'2026-06-26', memo:'スーパー〇〇' },
-    ],
-  };
-}
 
 /* =========================================================================
    集計（実付与累計は時系列順に純粋関数を再生して算出）
@@ -1033,7 +1014,7 @@ qs('#fileInput').addEventListener('change', e=>{
 function init(){
   DATA = loadData();
   if(!DATA || !Array.isArray(DATA.users) || DATA.users.length === 0){
-    DATA = seedData();
+    DATA = freshData();
   }
   if(!Array.isArray(DATA.payments)) DATA.payments = [];   // 破損データへの防御
   if(!DATA.users.some(u => u.id === DATA.activeUserId)) DATA.activeUserId = DATA.users[0].id;
