@@ -11,6 +11,7 @@
 'use strict';
 
 const CACHE = 'kanatoku-v1';
+// プリキャッシュ対象。公開ファイルを足したら Makefile の build（public/ へコピーする一覧）と両方を更新する。
 const CORE = [
   './',
   './index.html',
@@ -47,13 +48,18 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+// fetch して成功応答（2xx）のみキャッシュ更新する。応答はそのまま返す（失敗時は例外）。
+async function fetchAndCache(req, cache) {
+  const res = await fetch(req);
+  if (res && res.ok) cache.put(req, res.clone());
+  return res;
+}
+
 // オンライン時は最新を取得しキャッシュ更新。失敗時はキャッシュ（最終的にトップ）へ。
 async function networkFirst(req) {
   const cache = await caches.open(CACHE);
   try {
-    const res = await fetch(req);
-    cache.put(req, res.clone());
-    return res;
+    return await fetchAndCache(req, cache);
   } catch (e) {
     return (
       (await cache.match(req)) ||
@@ -69,13 +75,11 @@ async function cacheFirst(req) {
   const cache = await caches.open(CACHE);
   const cached = await cache.match(req);
   if (cached) {
-    fetch(req).then((res) => { if (res && res.ok) cache.put(req, res.clone()); }).catch(() => {});
+    fetchAndCache(req, cache).catch(() => {}); // 裏で更新
     return cached;
   }
   try {
-    const res = await fetch(req);
-    if (res && res.ok) cache.put(req, res.clone());
-    return res;
+    return await fetchAndCache(req, cache);
   } catch (e) {
     return Response.error();
   }
