@@ -10,7 +10,7 @@
  */
 'use strict';
 
-const CACHE = 'kanatoku-v3';
+const CACHE = 'kanatoku-v4';
 // プリキャッシュ対象。公開ファイルを足したら Makefile の build（public/ へコピーする一覧）と両方を更新する。
 const CORE = [
   './',
@@ -22,9 +22,15 @@ const CORE = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(CORE)).then(() => self.skipWaiting())
-  );
+  // ここでは skipWaiting しない。新SWは待機状態に留め、ページからの SKIP_WAITING 受信で起動する
+  // （アプリ内の更新バナーの「更新」押下でユーザーが明示的に適用する）。
+  // 初回インストール時は待機する旧SWが無いため、そのまま activate される。
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE)));
+});
+
+// ページからの依頼で待機を解除し、新SWを即時有効化する（更新バナーの「更新」押下時）。
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
