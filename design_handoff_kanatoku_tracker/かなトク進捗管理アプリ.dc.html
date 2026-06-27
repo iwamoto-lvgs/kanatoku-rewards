@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { -webkit-font-smoothing: antialiased; box-sizing: border-box; }
+</style>
+</helmet>
+
+<div style="position:absolute; left:40px; top:0px; width:820px; font-family:'Noto Sans JP',system-ui,sans-serif;">
+  <div data-drags-parent="1" style="font:700 13px/1 'Noto Sans JP',system-ui; color:#8A94A3; margin-bottom:14px; letter-spacing:.06em;">画面デザイン案 — モバイルファースト</div>
+  <div style="font:800 32px/1.25 'Noto Sans JP'; color:#16202E; letter-spacing:-.01em;">かなトク進捗管理アプリ</div>
+  <div style="font-size:15px; color:#5B6573; margin-top:12px; line-height:1.8; max-width:720px;">決済サービスごとに分かれた還元上限（1サービス <b style="color:#16202E;">¥2,500</b> ／ 1回 <b style="color:#16202E;">¥1,500</b>）を、6サービス横断で可視化。取りこぼし・無駄打ちを防ぐ。サーバー不要・単一HTML・localStorage永続化を前提とした、信頼感のあるクリーンなUI。</div>
+  <div style="display:flex; flex-wrap:wrap; gap:10px 18px; margin-top:20px;">
+    <sc-for list="{{ services }}" as="s" hint-placeholder-count="6">
+      <div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#5B6573;">
+        <span style="width:14px; height:14px; border-radius:4px; background:{{ s.color }};"></span>{{ s.name }}
+      </div>
+    </sc-for>
+  </div>
+  <div style="margin-top:22px; display:flex; gap:14px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:330px; background:#fff; border:1px solid #E9EDF2; border-radius:14px; padding:16px 18px;">
+      <div style="font-size:12px; font-weight:700; color:#1565C0; letter-spacing:.04em;">計算ロジック（順序を固定）</div>
+      <div style="font-size:12.5px; color:#5B6573; line-height:1.9; margin-top:8px; font-family:'Noto Sans JP',ui-monospace;">理論付与 = 支払額 × 還元率<br>1回上限適用 = min(理論, ¥1,500)<br>サービス上限適用 = min(上記, ¥2,500 − 既付与累計)<br><b style="color:#16202E;">実付与額 = max(0, 上記)</b></div>
+    </div>
+    <div style="flex:1; min-width:330px; background:#fff; border:1px solid #E9EDF2; border-radius:14px; padding:16px 18px;">
+      <div style="font-size:12px; font-weight:700; color:#1565C0; letter-spacing:.04em;">画面構成</div>
+      <div style="font-size:13px; color:#5B6573; line-height:1.9; margin-top:8px;">① ダッシュボード（残枠の可視化）<br>② 支払いを記録（自動計算・丸め明示）<br>③ 履歴（フィルタ付き一覧）<br>④ 設定（ユーザー管理・バックアップ）</div>
+    </div>
+  </div>
+</div>
+
+<!-- ① DASHBOARD -->
+<div style="position:absolute; left:40px; top:470px; width:390px; font-family:'Noto Sans JP',system-ui,sans-serif;">
+  <div data-drags-parent="1" style="font:600 13px/1 'Noto Sans JP'; color:#5B6573; margin-bottom:12px;">① ダッシュボード</div>
+  <div style="--accent:{{ accent }}; width:390px; background:#F4F6F9; border-radius:42px; overflow:hidden; box-shadow:0 30px 70px rgba(16,24,40,.18), 0 0 0 1px rgba(16,24,40,.06); position:relative;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:15px 28px 4px; font-size:14px; font-weight:700; color:#16202E;">
+      <span>9:41</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <svg width="17" height="11" viewBox="0 0 17 11" fill="#16202E"><rect x="0" y="7" width="2.6" height="4" rx=".5"/><rect x="3.6" y="5" width="2.6" height="6" rx=".5"/><rect x="7.2" y="2.5" width="2.6" height="8.5" rx=".5"/><rect x="10.8" y="0" width="2.6" height="11" rx=".5"/></svg>
+        <svg width="24" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="#16202E" stroke-opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="#16202E"/><rect x="23" y="4" width="1.6" height="4" rx=".8" fill="#16202E" opacity=".4"/></svg>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 22px 16px;">
+      <div>
+        <div style="font-size:11px; color:#8A94A3; font-weight:700; letter-spacing:.05em;">アクティブユーザー</div>
+        <div style="display:flex; align-items:center; gap:6px; margin-top:3px;">
+          <span style="font-size:21px; font-weight:800; color:#16202E;">{{ userName }}</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A94A3" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+      </div>
+      <div style="width:40px; height:40px; border-radius:50%; background:var(--accent,#1565C0); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px;">ゆ</div>
+    </div>
+    <div style="margin:0 20px; background:var(--accent,#1565C0); border-radius:22px; padding:18px 20px 20px; color:#fff; box-shadow:0 10px 24px rgba(21,101,192,.28);">
+      <div style="font-size:12px; opacity:.88; font-weight:600;">総付与額（このユーザー）</div>
+      <div style="display:flex; align-items:baseline; gap:8px; margin-top:5px;">
+        <span style="font-size:36px; font-weight:800; letter-spacing:-.02em;">{{ totalStr }}</span>
+        <span style="opacity:.8; font-size:14px;">/ {{ maxStr }}</span>
+      </div>
+      <div style="height:8px; border-radius:99px; background:rgba(255,255,255,.25); margin-top:12px; overflow:hidden;">
+        <div style="height:100%; width:{{ totalPct }}%; background:#fff; border-radius:99px;"></div>
+      </div>
+      <div style="font-size:12px; opacity:.88; margin-top:9px;">全6サービス上限まで {{ totalPctStr }}</div>
+    </div>
+    <div style="font-size:12px; font-weight:700; color:#8A94A3; letter-spacing:.04em; padding:18px 22px 8px;">サービス別の残枠</div>
+    <div style="padding:0 20px 12px;">
+      <sc-for list="{{ services }}" as="s" hint-placeholder-count="6">
+        <div style="background:#fff; border-radius:18px; padding:15px 16px; margin-bottom:11px; border:1px solid #EEF1F5; box-shadow:0 1px 3px rgba(16,24,40,.05);">
+          <div style="display:flex; align-items:center; gap:11px;">
+            <div style="width:40px; height:40px; border-radius:11px; background:{{ s.color }}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex-shrink:0;">{{ s.logo }}</div>
+            <div style="flex:1;">
+              <div style="font-size:15px; font-weight:700; color:#16202E;">{{ s.name }}</div>
+              <div style="font-size:12px; color:#8A94A3;">付与済 {{ s.cumStr }} / {{ s.capStr }}</div>
+            </div>
+            <sc-if value="{{ s.done }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; align-items:center; gap:4px; background:#E7F5EE; color:#1E8E5A; font-size:12px; font-weight:700; padding:5px 10px; border-radius:99px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1E8E5A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>上限達成
+              </div>
+            </sc-if>
+            <sc-if value="{{ s.notDone }}" hint-placeholder-val="{{ true }}">
+              <div style="text-align:right;">
+                <div style="font-size:10px; color:#8A94A3; font-weight:600;">残り</div>
+                <div style="font-size:15px; font-weight:800; color:#16202E;">{{ s.residualStr }}</div>
+              </div>
+            </sc-if>
+          </div>
+          <div style="height:7px; border-radius:99px; background:#EEF1F5; margin-top:12px; overflow:hidden;">
+            <div style="height:100%; width:{{ s.pct }}%; background:{{ s.color }}; border-radius:99px;"></div>
+          </div>
+          <sc-if value="{{ s.showEst }}" hint-placeholder-val="{{ true }}">
+            <div style="margin-top:12px; background:#F7F9FC; border-radius:11px; padding:10px 12px;">
+              <div style="font-size:11px; font-weight:700; color:#16202E; margin-bottom:4px;">残枠を使い切る目安支払額</div>
+              <div style="display:flex; gap:18px; font-size:12px; color:#5B6573;">
+                <span>20%店 <b style="color:#16202E;">{{ s.est20Str }}</b></span>
+                <span>10%店 <b style="color:#16202E;">{{ s.est10Str }}</b></span>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex; justify-content:space-around; align-items:flex-start; padding:9px 0 6px; background:#fff; border-top:1px solid #EEF1F5;">
+      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--accent,#1565C0);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg><span style="font-size:10px; font-weight:700;">ホーム</span></div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; color:#9AA4B2;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span style="font-size:10px; font-weight:600;">記録</span></div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; color:#9AA4B2;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg><span style="font-size:10px; font-weight:600;">履歴</span></div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:3px; color:#9AA4B2;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7L5.6 5.6"/></svg><span style="font-size:10px; font-weight:600;">設定</span></div>
+    </div>
+    <div style="display:flex; justify-content:center; padding-bottom:9px; background:#fff;"><div style="width:130px; height:5px; border-radius:99px; background:rgba(0,0,0,.25);"></div></div>
+  </div>
+</div>
+
+<!-- ② RECORD -->
+<div style="position:absolute; left:520px; top:470px; width:390px; font-family:'Noto Sans JP',system-ui,sans-serif;">
+  <div data-drags-parent="1" style="font:600 13px/1 'Noto Sans JP'; color:#5B6573; margin-bottom:12px;">② 支払いを記録（自動計算・丸め明示）</div>
+  <div style="--accent:{{ accent }}; width:390px; background:#F4F6F9; border-radius:42px; overflow:hidden; box-shadow:0 30px 70px rgba(16,24,40,.18), 0 0 0 1px rgba(16,24,40,.06);">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:15px 28px 4px; font-size:14px; font-weight:700; color:#16202E;">
+      <span>9:41</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <svg width="17" height="11" viewBox="0 0 17 11" fill="#16202E"><rect x="0" y="7" width="2.6" height="4" rx=".5"/><rect x="3.6" y="5" width="2.6" height="6" rx=".5"/><rect x="7.2" y="2.5" width="2.6" height="8.5" rx=".5"/><rect x="10.8" y="0" width="2.6" height="11" rx=".5"/></svg>
+        <svg width="24" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="#16202E" stroke-opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="#16202E"/><rect x="23" y="4" width="1.6" height="4" rx=".8" fill="#16202E" opacity=".4"/></svg>
+      </div>
+    </div>
+    <div style="padding:12px 22px 6px;"><div style="font-size:22px; font-weight:800; color:#16202E;">支払いを記録</div></div>
+    <div style="padding:0 20px 14px;">
+      <div style="font-size:12px; font-weight:700; color:#5B6573; margin:8px 2px 8px;">決済サービス</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+        <div style="display:flex; align-items:center; gap:6px; padding:9px 8px; border-radius:11px; border:1.5px solid #E6EAF0; background:#fff; font-size:12px; font-weight:600; color:#8A94A3;"><span style="width:9px;height:9px;border-radius:3px;background:#E5006E;"></span>AEON</div>
+        <div style="display:flex; align-items:center; gap:6px; padding:9px 8px; border-radius:11px; border:1.5px solid #E6EAF0; background:#fff; font-size:12px; font-weight:600; color:#8A94A3;"><span style="width:9px;height:9px;border-radius:3px;background:#EB5505;"></span>au PAY</div>
+        <div style="display:flex; align-items:center; gap:6px; padding:9px 8px; border-radius:11px; border:1.5px solid #E6EAF0; background:#fff; font-size:12px; font-weight:600; color:#8A94A3;"><span style="width:9px;height:9px;border-radius:3px;background:#D4006A;"></span>d払い</div>
+        <div style="display:flex; align-items:center; gap:6px; padding:9px 8px; border-radius:11px; border:1.5px solid var(--accent,#1565C0); background:rgba(21,101,192,.07); font-size:12px; font-weight:700; color:#16202E;"><span style="width:9px;height:9px;border-radius:3px;background:#FF0033;"></span>PayPay</div>
+        <div style="display:flex; align-items:center; gap:6px; padding:9px 8px; border-radius:11px; border:1.5px solid #E6EAF0; background:#fff; font-size:12px; font-weight:600; color:#8A94A3;"><span style="width:9px;height:9px;border-radius:3px;background:#FF211D;"></span>メルペイ</div>
+        <div style="display:flex; align-items:center; gap:6px; padding:9px 8px; border-radius:11px; border:1.5px solid #E6EAF0; background:#fff; font-size:12px; font-weight:600; color:#8A94A3;"><span style="width:9px;height:9px;border-radius:3px;background:#BF0000;"></span>楽天</div>
+      </div>
+      <div style="font-size:12px; font-weight:700; color:#5B6573; margin:16px 2px 8px;">支払額</div>
+      <div style="background:#fff; border:1.5px solid var(--accent,#1565C0); border-radius:13px; padding:14px 16px; display:flex; align-items:baseline; gap:6px;">
+        <span style="font-size:18px; color:#8A94A3; font-weight:700;">¥</span>
+        <span style="font-size:28px; font-weight:800; color:#16202E;">8,000</span>
+        <span style="width:2px; height:26px; background:var(--accent,#1565C0); margin-left:2px; border-radius:1px;"></span>
+      </div>
+      <div style="display:flex; gap:12px; margin-top:16px;">
+        <div style="flex:1;">
+          <div style="font-size:12px; font-weight:700; color:#5B6573; margin:0 2px 8px;">還元率</div>
+          <div style="display:flex; background:#EEF1F5; border-radius:11px; padding:3px;">
+            <div style="flex:1; text-align:center; padding:8px 0; border-radius:9px; background:#fff; font-size:13px; font-weight:800; color:#16202E; box-shadow:0 1px 2px rgba(0,0,0,.08);">20%</div>
+            <div style="flex:1; text-align:center; padding:8px 0; font-size:13px; font-weight:600; color:#8A94A3;">10%</div>
+          </div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:12px; font-weight:700; color:#5B6573; margin:0 2px 8px;">日付</div>
+          <div style="background:#fff; border:1.5px solid #E6EAF0; border-radius:11px; padding:9px 12px; font-size:13px; font-weight:600; color:#16202E; display:flex; align-items:center; justify-content:space-between;">2026/06/26<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A94A3" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></div>
+        </div>
+      </div>
+      <div style="font-size:12px; font-weight:700; color:#5B6573; margin:16px 2px 8px;">メモ（任意）</div>
+      <div style="background:#fff; border:1.5px solid #E6EAF0; border-radius:11px; padding:11px 13px; font-size:13px; color:#16202E;">スーパー〇〇</div>
+
+      <div style="margin-top:18px; background:#fff; border:1px solid #EEF1F5; border-radius:16px; padding:16px; box-shadow:0 1px 3px rgba(16,24,40,.05);">
+        <div style="font-size:11px; font-weight:700; color:#8A94A3; letter-spacing:.04em;">実付与額（自動計算）</div>
+        <div style="font-size:32px; font-weight:800; color:var(--accent,#1565C0); margin-top:2px;">¥1,000</div>
+        <div style="margin-top:12px; border-top:1px dashed #E6EAF0; padding-top:12px; display:flex; flex-direction:column; gap:7px; font-size:12.5px;">
+          <div style="display:flex; justify-content:space-between; color:#5B6573;"><span>理論付与（¥8,000 × 20%）</span><span style="color:#16202E; font-weight:600;">¥1,600</span></div>
+          <div style="display:flex; justify-content:space-between; color:#5B6573;"><span>1回上限を適用</span><span style="color:#C77700; font-weight:700;">¥1,500</span></div>
+          <div style="display:flex; justify-content:space-between; color:#5B6573;"><span>サービス残枠を適用（PayPay 残¥1,000）</span><span style="color:#16202E; font-weight:700;">¥1,000</span></div>
+        </div>
+        <div style="margin-top:12px; display:flex; align-items:flex-start; gap:8px; background:#FFF6E6; border:1px solid #F6E2BC; border-radius:10px; padding:9px 11px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C77700" stroke-width="2.2" style="flex-shrink:0; margin-top:1px;"><path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 001.7 3h16.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+          <span style="font-size:12px; color:#7A5200; line-height:1.5; font-weight:600;">1回上限により ¥1,500 に丸められました</span>
+        </div>
+        <div style="margin-top:8px; display:flex; align-items:flex-start; gap:8px; background:#FDECEC; border:1px solid #F4C7C7; border-radius:10px; padding:9px 11px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C0392B" stroke-width="2.2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+          <span style="font-size:12px; color:#A02B22; line-height:1.5; font-weight:600;">この記録で PayPay は上限（¥2,500）に達します</span>
+        </div>
+      </div>
+      <div style="margin-top:16px; background:var(--accent,#1565C0); color:#fff; text-align:center; padding:15px; border-radius:14px; font-size:15px; font-weight:800; box-shadow:0 8px 18px rgba(21,101,192,.28);">記録する</div>
+    </div>
+    <div style="display:flex; justify-content:center; padding:10px 0 9px; background:#fff;"><div style="width:130px; height:5px; border-radius:99px; background:rgba(0,0,0,.25);"></div></div>
+  </div>
+</div>
+
+<!-- ③ HISTORY -->
+<div style="position:absolute; left:1000px; top:470px; width:390px; font-family:'Noto Sans JP',system-ui,sans-serif;">
+  <div data-drags-parent="1" style="font:600 13px/1 'Noto Sans JP'; color:#5B6573; margin-bottom:12px;">③ 履歴（フィルタ付き）</div>
+  <div style="--accent:{{ accent }}; width:390px; background:#F4F6F9; border-radius:42px; overflow:hidden; box-shadow:0 30px 70px rgba(16,24,40,.18), 0 0 0 1px rgba(16,24,40,.06);">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:15px 28px 4px; font-size:14px; font-weight:700; color:#16202E;">
+      <span>9:41</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <svg width="17" height="11" viewBox="0 0 17 11" fill="#16202E"><rect x="0" y="7" width="2.6" height="4" rx=".5"/><rect x="3.6" y="5" width="2.6" height="6" rx=".5"/><rect x="7.2" y="2.5" width="2.6" height="8.5" rx=".5"/><rect x="10.8" y="0" width="2.6" height="11" rx=".5"/></svg>
+        <svg width="24" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="#16202E" stroke-opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="#16202E"/><rect x="23" y="4" width="1.6" height="4" rx=".8" fill="#16202E" opacity=".4"/></svg>
+      </div>
+    </div>
+    <div style="padding:12px 22px 10px;"><div style="font-size:22px; font-weight:800; color:#16202E;">履歴</div></div>
+    <div style="display:flex; gap:8px; padding:0 20px 14px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:center; gap:6px; background:#fff; border:1.5px solid #E6EAF0; border-radius:99px; padding:7px 13px; font-size:12.5px; font-weight:700; color:#16202E;">すべてのサービス<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8A94A3" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div style="display:flex; align-items:center; gap:6px; background:rgba(21,101,192,.08); border:1.5px solid var(--accent,#1565C0); border-radius:99px; padding:7px 13px; font-size:12.5px; font-weight:700; color:var(--accent,#1565C0);">ゆうき<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1565C0" stroke-width="2.5" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></div>
+    </div>
+    <div style="padding:0 20px 14px;">
+      <sc-for list="{{ historyGroups }}" as="g" hint-placeholder-count="3">
+        <div style="font-size:12px; color:#8A94A3; font-weight:700; margin:6px 2px 8px;">{{ g.dateStr }}</div>
+        <div style="background:#fff; border-radius:16px; border:1px solid #EEF1F5; overflow:hidden; margin-bottom:14px; box-shadow:0 1px 3px rgba(16,24,40,.04);">
+          <sc-for list="{{ g.items }}" as="p" hint-placeholder-count="2">
+            <div style="display:flex; align-items:center; gap:12px; padding:13px 14px; border-bottom:1px solid #F1F4F8;">
+              <div style="width:38px; height:38px; border-radius:10px; background:{{ p.color }}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:12px; flex-shrink:0;">{{ p.logo }}</div>
+              <div style="flex:1; min-width:0;">
+                <div style="font-size:14.5px; font-weight:700; color:#16202E;">{{ p.serviceName }}</div>
+                <div style="font-size:12px; color:#8A94A3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ p.memo }}・還元{{ p.rateStr }}</div>
+              </div>
+              <div style="text-align:right; flex-shrink:0;">
+                <div style="font-size:14.5px; font-weight:700; color:#16202E;">{{ p.amountStr }}</div>
+                <div style="font-size:12px; font-weight:800; color:#1E8E5A;">{{ p.grantedStr }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display:flex; justify-content:center; padding:8px 0 9px; background:#fff; border-top:1px solid #EEF1F5;"><div style="width:130px; height:5px; border-radius:99px; background:rgba(0,0,0,.25);"></div></div>
+  </div>
+</div>
+
+<!-- ④ SETTINGS -->
+<div style="position:absolute; left:1480px; top:470px; width:390px; font-family:'Noto Sans JP',system-ui,sans-serif;">
+  <div data-drags-parent="1" style="font:600 13px/1 'Noto Sans JP'; color:#5B6573; margin-bottom:12px;">④ 設定（ユーザー管理・バックアップ）</div>
+  <div style="--accent:{{ accent }}; width:390px; background:#F4F6F9; border-radius:42px; overflow:hidden; box-shadow:0 30px 70px rgba(16,24,40,.18), 0 0 0 1px rgba(16,24,40,.06);">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:15px 28px 4px; font-size:14px; font-weight:700; color:#16202E;">
+      <span>9:41</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <svg width="17" height="11" viewBox="0 0 17 11" fill="#16202E"><rect x="0" y="7" width="2.6" height="4" rx=".5"/><rect x="3.6" y="5" width="2.6" height="6" rx=".5"/><rect x="7.2" y="2.5" width="2.6" height="8.5" rx=".5"/><rect x="10.8" y="0" width="2.6" height="11" rx=".5"/></svg>
+        <svg width="24" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="#16202E" stroke-opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="#16202E"/><rect x="23" y="4" width="1.6" height="4" rx=".8" fill="#16202E" opacity=".4"/></svg>
+      </div>
+    </div>
+    <div style="padding:12px 22px 8px;"><div style="font-size:22px; font-weight:800; color:#16202E;">設定</div></div>
+    <div style="padding:0 20px 16px;">
+      <div style="font-size:12px; font-weight:700; color:#8A94A3; letter-spacing:.04em; margin:8px 2px 8px;">ユーザー</div>
+      <div style="background:#fff; border-radius:16px; border:1px solid #EEF1F5; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid #F1F4F8;">
+          <div style="width:34px; height:34px; border-radius:50%; background:var(--accent,#1565C0); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px;">ゆ</div>
+          <div style="flex:1; font-size:15px; font-weight:700; color:#16202E;">ゆうき</div>
+          <span style="font-size:11px; font-weight:700; color:var(--accent,#1565C0); background:rgba(21,101,192,.1); padding:4px 9px; border-radius:99px;">使用中</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; padding:13px 15px; border-bottom:1px solid #F1F4F8;">
+          <div style="width:34px; height:34px; border-radius:50%; background:#C0C8D2; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px;">さ</div>
+          <div style="flex:1; font-size:15px; font-weight:600; color:#16202E;">さき</div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B7C0CC" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+        </div>
+        <div style="display:flex; align-items:center; gap:9px; padding:13px 15px; color:var(--accent,#1565C0);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          <span style="font-size:14px; font-weight:700;">ユーザーを追加</span>
+        </div>
+      </div>
+
+      <div style="font-size:12px; font-weight:700; color:#8A94A3; letter-spacing:.04em; margin:20px 2px 8px;">データ（バックアップ）</div>
+      <div style="background:#fff; border-radius:16px; border:1px solid #EEF1F5; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 15px; border-bottom:1px solid #F1F4F8;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16202E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+          <span style="flex:1; font-size:14.5px; font-weight:600; color:#16202E;">JSONエクスポート</span>
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="#C2CAD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 15px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16202E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 21h14"/></svg>
+          <span style="flex:1; font-size:14.5px; font-weight:600; color:#16202E;">JSONインポート</span>
+          <svg width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="#C2CAD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l6 6-6 6"/></svg>
+        </div>
+      </div>
+      <div style="display:flex; align-items:flex-start; gap:9px; background:#FFF6E6; border:1px solid #F6E2BC; border-radius:13px; padding:12px 13px; margin-top:12px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C77700" stroke-width="2.2" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <span style="font-size:12px; color:#7A5200; line-height:1.6;">データは端末内（localStorage）にのみ保存されます。ブラウザのデータ削除やプライベートモードで消える場合があるため、定期的なエクスポートを推奨します。</span>
+      </div>
+
+      <div style="font-size:12px; font-weight:700; color:#8A94A3; letter-spacing:.04em; margin:20px 2px 8px;">キャンペーン要項</div>
+      <div style="background:#fff; border-radius:16px; border:1px solid #EEF1F5; padding:14px 15px; font-size:12.5px; color:#5B6573; line-height:1.9;">
+        還元率 中小店 <b style="color:#16202E;">20%</b> ／ 大手店 <b style="color:#16202E;">10%</b><br>サービスあたり上限 <b style="color:#16202E;">¥2,500</b><br>1回あたり上限 <b style="color:#16202E;">¥1,500</b><br>期間 2026/6/19〜予算上限到達まで
+      </div>
+    </div>
+    <div style="display:flex; justify-content:center; padding:8px 0 9px; background:#fff; border-top:1px solid #EEF1F5;"><div style="width:130px; height:5px; border-radius:99px; background:rgba(0,0,0,.25);"></div></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1920,&quot;height&quot;:1280},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#1565C0&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#1565C0&quot;,&quot;#0B6E4F&quot;,&quot;#5E35B1&quot;,&quot;#111827&quot;],&quot;section&quot;:&quot;テーマ&quot;},&quot;userName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;ゆうき&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;データ&quot;},&quot;showEstimates&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;表示&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const PER_TX = 1500, SVC_CAP = 2500, MAX = 15000;
+    const yen = n => '¥' + Math.round(n).toLocaleString('ja-JP');
+    const accent = this.props.accentColor ?? '#1565C0';
+    const userName = this.props.userName ?? 'ゆうき';
+    const showEstimates = this.props.showEstimates ?? true;
+
+    const SERVICES = [
+      { id: 'aeonpay',    name: 'AEON Pay', color: '#E5006E', logo: 'A' },
+      { id: 'aupay',      name: 'au PAY',   color: '#EB5505', logo: 'au' },
+      { id: 'dpay',       name: 'd払い',    color: '#D4006A', logo: 'd' },
+      { id: 'paypay',     name: 'PayPay',   color: '#FF0033', logo: 'P' },
+      { id: 'merpay',     name: 'メルペイ', color: '#FF211D', logo: 'm' },
+      { id: 'rakutenpay', name: '楽天ペイ', color: '#BF0000', logo: 'R' },
+    ];
+    const meta = id => SERVICES.find(s => s.id === id);
+
+    // pure calc function (spec §2 — order fixed)
+    const calc = (amount, rate, prior) => {
+      const theo = amount * rate;
+      const perTx = Math.min(theo, PER_TX);
+      const svc = Math.min(perTx, SVC_CAP - prior);
+      return Math.max(0, svc);
+    };
+
+    // sample payments (chronological)
+    const raw = [
+      { id: 'p1', service: 'paypay',     amount: 10000, rate: 0.20, date: '2026-06-20', memo: 'ドラッグストア' },
+      { id: 'p2', service: 'dpay',       amount: 4000,  rate: 0.20, date: '2026-06-21', memo: 'カフェ' },
+      { id: 'p3', service: 'rakutenpay', amount: 7500,  rate: 0.20, date: '2026-06-23', memo: '飲食店' },
+      { id: 'p4', service: 'merpay',     amount: 6000,  rate: 0.20, date: '2026-06-24', memo: '雑貨店' },
+      { id: 'p5', service: 'aeonpay',    amount: 1500,  rate: 0.20, date: '2026-06-25', memo: 'ベーカリー' },
+      { id: 'p6', service: 'merpay',     amount: 5000,  rate: 0.20, date: '2026-06-26', memo: '本屋' },
+      { id: 'p7', service: 'paypay',     amount: 8000,  rate: 0.20, date: '2026-06-26', memo: 'スーパー〇〇' },
+    ];
+    const priors = {};
+    const computed = raw.map(p => {
+      const prior = priors[p.service] || 0;
+      const granted = calc(p.amount, p.rate, prior);
+      priors[p.service] = prior + granted;
+      return { ...p, granted };
+    });
+
+    const services = SERVICES.map(s => {
+      const cum = priors[s.id] || 0;
+      const residual = SVC_CAP - cum;
+      const done = residual <= 0;
+      return {
+        ...s, cum, residual,
+        pct: Math.round(cum / SVC_CAP * 100),
+        done, notDone: !done,
+        showEst: !done && showEstimates,
+        cumStr: yen(cum), capStr: yen(SVC_CAP), residualStr: yen(residual),
+        est20Str: yen(residual / 0.20), est10Str: yen(residual / 0.10),
+      };
+    });
+
+    const total = Object.values(priors).reduce((a, b) => a + b, 0);
+
+    const dayJa = ['日', '月', '火', '水', '木', '金', '土'];
+    const fmtDate = d => { const t = d.split('-'); const dt = new Date(+t[0], +t[1] - 1, +t[2]); return `${dt.getMonth() + 1}月${dt.getDate()}日 (${dayJa[dt.getDay()]})`; };
+
+    const hist = [...computed].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).map(p => {
+      const m = meta(p.service);
+      return { ...p, serviceName: m.name, color: m.color, logo: m.logo,
+        amountStr: yen(p.amount), grantedStr: '+' + yen(p.granted), rateStr: (p.rate * 100) + '%' };
+    });
+    const groups = [];
+    hist.forEach(p => {
+      let g = groups.find(x => x.date === p.date);
+      if (!g) { g = { date: p.date, dateStr: fmtDate(p.date), items: [] }; groups.push(g); }
+      g.items.push(p);
+    });
+
+    return {
+      accent, userName, services,
+      historyGroups: groups,
+      totalStr: yen(total), maxStr: yen(MAX),
+      totalPct: Math.round(total / MAX * 100),
+      totalPctStr: Math.round(total / MAX * 100) + '%',
+    };
+  }
+}
+</script>
+</body>
+</html>
