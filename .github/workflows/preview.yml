@@ -1,0 +1,38 @@
+name: Deploy PR Preview
+
+# feature ブランチの PR ごとに検証用サイトを gh-pages の pr-preview/pr-<番号>/ へ公開し、
+# プレビュー URL を PR にコメント通知する。PR クローズ時はプレビューを自動削除する。
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    name: PR プレビュー公開
+    runs-on: ubuntu-latest
+    # フォークからの PR は GITHUB_TOKEN が読み取り専用となりプレビューを公開できないため、
+    # 同一リポジトリの PR に限定する。
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build site
+        if: github.event.action != 'closed'
+        run: make build
+
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: public
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
