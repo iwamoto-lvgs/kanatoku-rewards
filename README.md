@@ -3,6 +3,7 @@
 かなトク（神奈川県のキャッシュレス還元キャンペーン）の還元上限を、決済サービスごとに管理するための単一HTML Webアプリです。複数の決済アプリを併用したときに「どのサービスであと何円分の還元を受けられるか」を横断的に把握し、取りこぼし・無駄打ちを防ぎます。
 
 - サーバー不要・ブラウザ単体で動作（オフライン可）
+- PWA 対応。ホーム画面に追加するとアプリのように起動し、オフラインでも利用できる
 - データは端末内の localStorage にのみ保存
 - バニラ HTML / CSS / JavaScript（フレームワーク・ビルドツール不使用）
 
@@ -29,7 +30,11 @@
 
 ```
 .
-├── index.html                         # アプリ本体（単一ファイル。これが公開対象）
+├── index.html                         # アプリ本体（アプリロジックはこの単一ファイルに集約）
+├── manifest.webmanifest               # PWA マニフェスト（インストール用メタ情報）
+├── sw.js                              # Service Worker（オフライン動作・キャッシュ）
+├── icon-192.png / icon-512.png        # インストール用アイコン
+├── icon-maskable-512.png              # マスカブルアイコン
 ├── Makefile                           # 開発用タスク（make help で一覧）
 ├── README.md                          # 本ファイル
 ├── test/
@@ -54,7 +59,7 @@ make            # 利用可能なタスク一覧を表示
 make serve      # ローカルサーバを起動（http://localhost:8000/）。PORT=3000 等で変更可
 make open       # 既定ブラウザでアプリを開く（別ターミナルで serve 起動後に使用）
 make test       # 計算ロジックのテストを実行
-make build      # 公開用ディレクトリ public/ を生成（index.html + .nojekyll）
+make build      # 公開用ディレクトリ public/ を生成（index.html + PWA 一式 + .nojekyll）
 make check      # build と test をまとめて実行（CI 相当）
 make clean      # 生成物（public/）を削除
 ```

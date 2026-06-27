@@ -25,7 +25,11 @@ make clean      # public/ を削除
 ## コード構成
 
 ```
-index.html                          # アプリ本体。単一ファイルで、これが公開対象
+index.html                          # アプリ本体。アプリロジックはこの単一ファイルに集約
+manifest.webmanifest                # PWA マニフェスト（インストール用メタ情報）
+sw.js                               # Service Worker（オフライン動作・キャッシュ）
+icon-192.png / icon-512.png         # インストール用アイコン（purpose: any）
+icon-maskable-512.png               # マスカブルアイコン（purpose: maskable）
 test/calc.test.js                   # 計算ロジックのテスト（仕様 §2）
 test/data.test.js                   # freshData（初期状態）のテスト
 .github/workflows/                  # ci.yml / deploy.yml / preview.yml
@@ -67,7 +71,8 @@ design_handoff_kanatoku_tracker/    # 設計・仕様の引き継ぎ資料（非
 ## 実装上の注意
 
 - 実装を行ったら、/review:loopコマンドを利用してチェックと修正 / PR作成まで行う。
-- 単一ファイル構成を維持する。モジュール分割やビルド導入はしない（公開物は `index.html` 単体）。
+- アプリロジックは `index.html` の単一ファイルに集約する。モジュール分割やバンドラ等のビルド導入はしない（公開物は素のファイル群）。PWA 用の `manifest.webmanifest` / `sw.js` / アイコンは例外として併置し、`make build` で `public/` へコピーする。
+- Service Worker（`sw.js`）はオフライン配信のため別ファイルで持つ。本番ルートと PR プレビュー（サブパス）の双方で動くよう、登録・`manifest` の `start_url`/`scope` は相対指定にする。`index.html` などの内容を変えたら `sw.js` の `CACHE` バージョンを上げて古いキャッシュを破棄する。
 - テスト抽出マーカーを壊さないこと。`test/*.test.js` は `index.html` を正規表現で読み、`vm` で評価する。
   - 計算ロジック・定数は `@test:start` 〜 `@test:end` の区間に置く。この区間は `document` / `localStorage` 等に依存させない（純粋関数のみ）。
   - `freshData` は `@test:data:start` 〜 `@test:data:end` の区間に置く。
