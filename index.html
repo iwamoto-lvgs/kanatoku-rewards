@@ -73,8 +73,17 @@
   .user-name-row{ display:flex; align-items:center; gap:6px; }
   .user-name{ font-size:21px; font-weight:800; color:var(--text); }
   .user-block .chev{ color:var(--text-3); }
-  .avatar{ width:40px; height:40px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; flex-shrink:0; }
+  .avatar{ width:40px; height:40px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; flex-shrink:0; overflow:hidden; }
   .avatar.sm{ width:34px; height:34px; font-size:14px; }
+  .avatar-img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .avatar-btn{ border:none; padding:0; cursor:pointer; }
+
+  /* ===== avatar editor (in user modal) ===== */
+  .avatar-edit-wrap{ display:flex; flex-direction:column; align-items:center; gap:9px; margin-bottom:18px; }
+  .avatar-edit{ position:relative; width:84px; height:84px; border:none; padding:0; background:none; cursor:pointer; }
+  .avatar-face{ position:absolute; inset:0; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; background:var(--accent); color:#fff; font-weight:800; font-size:32px; }
+  .avatar-cam{ position:absolute; right:-2px; bottom:-2px; width:28px; height:28px; border-radius:50%; background:var(--surface); color:var(--accent); display:flex; align-items:center; justify-content:center; border:2px solid var(--surface); box-shadow:0 1px 4px rgba(16,24,40,.25); }
+  .avatar-remove{ background:none; border:none; color:var(--error); font-size:13px; font-weight:700; cursor:pointer; padding:4px 8px; }
 
   /* ===== summary card ===== */
   .summary{ display:block; width:calc(100% - 40px); text-align:left; font:inherit; cursor:pointer; -webkit-appearance:none; appearance:none; margin:0 20px; background:var(--accent); border:none; border-radius:22px; padding:18px 20px 20px; color:#fff; box-shadow:var(--accent-shadow); }
@@ -242,6 +251,7 @@
 <div id="modalRoot"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <input type="file" id="fileInput" accept=".json,application/json" hidden>
+<input type="file" id="avatarInput" accept="image/*" hidden>
 
 <script>
 "use strict";
@@ -321,6 +331,11 @@ const qs  = (s, r=document) => r.querySelector(s);
 const qsa = (s, r=document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const firstChar = s => Array.from(String(s||'').trim())[0] || '?';
+// アバターの中身: 画像があれば <img>、無ければ名前のイニシャル（フォールバック）
+const avatarFace = (avatar, name) => avatar
+  ? `<img class="avatar-img" src="${esc(avatar)}" alt="">`
+  : esc(firstChar(name));
+const avatarInner = user => avatarFace(user.avatar, user.name);
 const genId = p => p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 function todayISO(){ const d=new Date(); const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
 const DAY_JA = ['日','月','火','水','木','金','土'];
@@ -347,6 +362,7 @@ const IC = {
   trash:(s)=>sv(s,`<path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13M10 11v6M14 11v6"/>`),
   chevronRight:(s)=>`<svg width="${Math.round(s*0.58)}" height="${s}" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M1 1l6 6-6 6"/></svg>`,
   plus:(s)=>sv(s,`<path d="M12 5v14M5 12h14"/>`,2.2),
+  camera:(s)=>sv(s,`<path d="M4.5 8h2.2l1.1-1.8a1 1 0 01.85-.48h6.7a1 1 0 01.85.48L17.3 8h2.2A1.5 1.5 0 0121 9.5v8A1.5 1.5 0 0119.5 19h-15A1.5 1.5 0 013 17.5v-8A1.5 1.5 0 014.5 8z"/><circle cx="12" cy="13" r="3"/>`,2),
 };
 
 /* =========================================================================
@@ -492,7 +508,7 @@ function renderHome(){
             <span class="chev">${IC.chevronDown(13)}</span>
           </div>
         </button>
-        <div class="avatar">${esc(firstChar(u.name))}</div>
+        <button class="avatar avatar-btn" data-action="edit-active-avatar" aria-label="${esc(u.name)}のアイコンを変更">${avatarInner(u)}</button>
       </div>
 
       <button type="button" class="summary" data-action="filter-history" data-service="all" aria-label="すべての履歴を見る">
@@ -743,7 +759,7 @@ function renderSettings(){
       <div class="urow">
         <button type="button" class="urow-main" data-action="${active ? 'edit-user' : 'switch-user'}"
                 data-id="${esc(u.id)}" aria-label="${esc(mainAria)}">
-          <div class="avatar sm" style="background:${active ? 'var(--accent)' : '#C0C8D2'}">${esc(firstChar(u.name))}</div>
+          <div class="avatar sm" style="background:${active ? 'var(--accent)' : '#C0C8D2'}">${avatarInner(u)}</div>
           <div class="u-name ${active?'active':''}">${esc(u.name)}</div>
         </button>
         ${ active
@@ -844,22 +860,45 @@ function confirmModal(msg, onYes, {yesLabel='削除する', danger=true}={}){
 
 function userModal(user){
   const isEdit = !!user;
-  const canDelete = isEdit && DATA.users.length > 1;
+  const canDelete = isEdit;   // 編集時は常に削除可（最後の1人は freshData で初期化に戻す）
+  let pendingAvatar = (isEdit && user.avatar) ? user.avatar : null;   // 保存時に確定するアイコン
+  const nameInit = isEdit ? user.name : '';
+
   showModal(`
     <div class="modal-title">${isEdit ? 'ユーザーを編集' : 'ユーザーを追加'}</div>
+    <div class="avatar-edit-wrap">
+      <button type="button" class="avatar-edit" id="avatarEdit" aria-label="アイコン画像を選択">
+        <span class="avatar-face" id="avatarFace">${avatarFace(pendingAvatar, nameInit)}</span>
+        <span class="avatar-cam">${IC.camera(15)}</span>
+      </button>
+      <button type="button" class="avatar-remove" id="avatarRemove" style="${pendingAvatar ? '' : 'display:none;'}">アイコンを削除</button>
+    </div>
     <input class="modal-input" id="uName" placeholder="名前" value="${isEdit ? esc(user.name) : ''}" maxlength="20" autocomplete="off">
     <div class="modal-actions">
       <button class="btn btn-accent" id="uSave">${isEdit ? '保存' : '追加'}</button>
       ${canDelete ? `<button class="btn btn-danger" id="uDel">このユーザーを削除</button>` : ''}
       <button class="btn btn-ghost" data-action="modal-close">キャンセル</button>
     </div>`);
-  const input = qs('#uName'); input.focus();
+
+  const input = qs('#uName');
+  const faceEl = qs('#avatarFace');
+  const removeBtn = qs('#avatarRemove');
+  const refreshFace = ()=>{
+    faceEl.innerHTML = avatarFace(pendingAvatar, input.value.trim());
+    removeBtn.style.display = pendingAvatar ? '' : 'none';
+  };
   input.onkeydown = e=>{ if(e.key==='Enter') qs('#uSave').click(); };
+  input.oninput = ()=>{ if(!pendingAvatar) refreshFace(); };   // 未設定時はイニシャルを名前に追従
+  qs('#avatarEdit').onclick = ()=>{
+    onAvatarPicked = (url)=>{ pendingAvatar = url; refreshFace(); };
+    qs('#avatarInput').click();
+  };
+  removeBtn.onclick = ()=>{ pendingAvatar = null; refreshFace(); };
   qs('#uSave').onclick = ()=>{
     const name = input.value.trim();
     if(!name){ input.focus(); return; }
-    if(isEdit){ user.name = name; }
-    else{ DATA.users.push({ id:genId('u'), name }); }
+    if(isEdit){ user.name = name; user.avatar = pendingAvatar; }
+    else{ DATA.users.push({ id:genId('u'), name, avatar: pendingAvatar }); }
     closeModal(); const ok = commit(); render(); if(ok) toast(isEdit ? '保存しました' : 'ユーザーを追加しました');
   };
   if(canDelete){
@@ -873,8 +912,15 @@ function userModal(user){
 function deleteUser(id){
   DATA.users = DATA.users.filter(u => u.id !== id);
   DATA.payments = DATA.payments.filter(p => p.userId !== id);
-  if(DATA.activeUserId === id) DATA.activeUserId = DATA.users[0].id;
-  if(STATE.historyFilter.userId === id) STATE.historyFilter.userId = 'all';
+  if(DATA.users.length === 0){
+    // 最後の1人を削除したら初期状態（既定ユーザー1名・記録なし）に戻す
+    DATA = freshData();
+    STATE.recordForm = newForm();
+    STATE.historyFilter = { service:'all', userId:'all' };
+  }else{
+    if(DATA.activeUserId === id) DATA.activeUserId = DATA.users[0].id;
+    if(STATE.historyFilter.userId === id) STATE.historyFilter.userId = 'all';
+  }
   const ok = commit(); render(); if(ok) toast('ユーザーを削除しました');
 }
 
@@ -883,7 +929,7 @@ function switchUserModal(){
     const active = u.id === DATA.activeUserId;
     return `
       <button class="sheet-row" data-action="switch-user" data-id="${esc(u.id)}">
-        <span class="avatar sm" style="background:${active ? 'var(--accent)' : '#C0C8D2'}">${esc(firstChar(u.name))}</span>
+        <span class="avatar sm" style="background:${active ? 'var(--accent)' : '#C0C8D2'}">${avatarInner(u)}</span>
         <span class="sheet-name">${esc(u.name)}</span>
         ${active ? `<span class="sheet-check">${IC.check(18)}</span>` : ''}
       </button>`;
@@ -928,11 +974,14 @@ function importJSON(file){
     confirmModal('現在のデータを上書きしてインポートしますか？', ()=>{
       // id は採番し直して属性インジェクションの経路を断ち、参照(userId)を付け替える。
       // service / date / 参照整合性も検証し、不正な記録は取り込まない。
+      // アイコンは画像 data URL のみ許可し、サイズ上限で localStorage 肥大を防ぐ
+      const sanitizeAvatar = a =>
+        (typeof a === 'string' && /^data:image\/(png|jpe?g|gif|webp);base64,/.test(a) && a.length <= 500000) ? a : null;
       const idMap = {};
       const users = parsed.users.map(u=>{
         const nid = genId('u');
         if(u && u.id != null) idMap[String(u.id)] = nid;
-        return { id:nid, name:String((u && u.name) || 'ユーザー').slice(0, 20) };
+        return { id:nid, name:String((u && u.name) || 'ユーザー').slice(0, 20), avatar:sanitizeAvatar(u && u.avatar) };
       });
       const validService = s => SERVICES.some(x => x.id === s);
       const payments = parsed.payments
@@ -959,6 +1008,36 @@ function importJSON(file){
     }, { yesLabel:'インポートする', danger:false });
   };
   reader.readAsText(file);
+}
+
+/* =========================================================================
+   アイコン画像（中央正方形クロップ → 縮小して data URL 化。localStorage 肥大を抑制）
+   ========================================================================= */
+const AVATAR_SIZE = 240;          // 保存する正方形アイコンの一辺(px)
+let onAvatarPicked = null;        // 画像選択完了時に呼ぶコールバック（モーダル側で差し替える）
+
+function processAvatarImage(file, cb){
+  const reader = new FileReader();
+  reader.onerror = ()=> toast('画像の読み込みに失敗しました');
+  reader.onload = ()=>{
+    const img = new Image();
+    img.onerror = ()=> toast('画像を読み込めませんでした');
+    img.onload = ()=>{
+      const side = Math.min(img.width, img.height);          // 中央を正方形で切り出す
+      const sx = (img.width  - side) / 2;
+      const sy = (img.height - side) / 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = AVATAR_SIZE;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
+      let url;
+      try{ url = canvas.toDataURL('image/jpeg', 0.85); }
+      catch(e){ toast('画像の処理に失敗しました'); return; }
+      cb(url);
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 /* すべての記録・ユーザーを削除して初期状態に戻す（取り消し不可） */
@@ -990,6 +1069,7 @@ document.addEventListener('click', e=>{
     case 'switch-user-open': switchUserModal(); break;
     case 'switch-user':      DATA.activeUserId = id; saveData(DATA); closeModal(); render(); break;
     case 'add-user':         userModal(null); break;
+    case 'edit-active-avatar': userModal(activeUser()); break;
     case 'edit-user':        e.stopPropagation(); userModal(DATA.users.find(u => u.id === id)); break;
     case 'export':           exportJSON(); break;
     case 'import':           qs('#fileInput').click(); break;
@@ -1053,6 +1133,16 @@ qs('#fileInput').addEventListener('change', e=>{
   const file = e.target.files[0];
   if(file) importJSON(file);
   e.target.value = '';
+});
+
+qs('#avatarInput').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  e.target.value = '';   // 同じファイルを再選択しても change が発火するようリセット
+  if(!file) return;
+  if(!/^image\//.test(file.type)){ toast('画像ファイルを選択してください'); return; }
+  processAvatarImage(file, (url)=>{
+    if(onAvatarPicked){ onAvatarPicked(url); onAvatarPicked = null; }
+  });
 });
 
 /* =========================================================================
