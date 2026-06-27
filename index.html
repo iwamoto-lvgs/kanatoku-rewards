@@ -246,6 +246,9 @@
   /* ===== toast ===== */
   .toast{ position:fixed; left:50%; bottom:calc(86px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(8px); background:#16202E; color:#fff; padding:10px 18px; border-radius:99px; font-size:13px; font-weight:700; z-index:60; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
   .toast.show{ opacity:.96; transform:translateX(-50%) translateY(0); }
+  .update-banner{ position:fixed; top:0; left:0; right:0; z-index:70; display:flex; align-items:center; justify-content:center; gap:14px; padding:calc(env(safe-area-inset-top) + 10px) 16px 11px; background:var(--accent); color:#fff; font-size:13px; font-weight:700; box-shadow:0 2px 10px rgba(16,24,40,.18); }
+  .update-banner[hidden]{ display:none; }
+  .update-banner button{ background:#fff; color:var(--accent); border:0; border-radius:99px; padding:7px 18px; font-size:13px; font-weight:800; cursor:pointer; flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -254,6 +257,10 @@
   <nav class="tabbar" id="tabbar"></nav>
 </div>
 <div id="modalRoot"></div>
+<div class="update-banner" id="updateBanner" role="status" aria-live="polite" hidden>
+  <span>新しいバージョンがあります</span>
+  <button type="button" id="updateBtn">更新</button>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <input type="file" id="fileInput" accept=".json,application/json" hidden>
 <input type="file" id="avatarInput" accept="image/*" hidden>
@@ -1169,9 +1176,42 @@ init();
 </script>
 <script>
   // Service Worker 登録（PWA: オフライン動作・インストール）。相対パスでサブパス配信にも対応。
+  // standalone 表示ではプル更新が無いため、新SW検知時に「更新」バナーを出してユーザー主導で再読み込みする。
   if ('serviceWorker' in navigator) {
+    // 新SWが制御権を取ったら（更新適用後）一度だけ再読み込みする。
+    // 初回インストール時の clients.claim() でも controllerchange は発火するため、
+    // 読み込み時点で既にコントローラがあった場合（＝更新）に限り再読み込みする。
+    let refreshing = false;
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing || !hadController) return;
+      refreshing = true;
+      location.reload();
+    });
+
+    const showUpdateBanner = (worker) => {
+      if (!worker) return;
+      const banner = document.getElementById('updateBanner');
+      banner.hidden = false;
+      document.getElementById('updateBtn').onclick = () => {
+        banner.hidden = true;
+        worker.postMessage({ type: 'SKIP_WAITING' }); // 待機中SWを起こす → controllerchange → reload
+      };
+    };
+
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        // 既に待機中の新SWがあれば即バナー（controller が無い初回インストール時は出さない）。
+        if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting);
+        reg.addEventListener('updatefound', () => {
+          const sw = reg.installing;
+          if (!sw) return;
+          sw.addEventListener('statechange', () => {
+            // installed かつ既存 controller あり = 既存利用者向けの更新。
+            if (sw.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(sw);
+          });
+        });
+      }).catch(() => {});
     });
   }
 </script>
