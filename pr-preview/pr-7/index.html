@@ -860,7 +860,7 @@ function confirmModal(msg, onYes, {yesLabel='削除する', danger=true}={}){
 
 function userModal(user){
   const isEdit = !!user;
-  const canDelete = isEdit && DATA.users.length > 1;
+  const canDelete = isEdit;   // 編集時は常に削除可（最後の1人は freshData で初期化に戻す）
   let pendingAvatar = (isEdit && user.avatar) ? user.avatar : null;   // 保存時に確定するアイコン
   const nameInit = isEdit ? user.name : '';
 
@@ -912,8 +912,15 @@ function userModal(user){
 function deleteUser(id){
   DATA.users = DATA.users.filter(u => u.id !== id);
   DATA.payments = DATA.payments.filter(p => p.userId !== id);
-  if(DATA.activeUserId === id) DATA.activeUserId = DATA.users[0].id;
-  if(STATE.historyFilter.userId === id) STATE.historyFilter.userId = 'all';
+  if(DATA.users.length === 0){
+    // 最後の1人を削除したら初期状態（既定ユーザー1名・記録なし）に戻す
+    DATA = freshData();
+    STATE.recordForm = newForm();
+    STATE.historyFilter = { service:'all', userId:'all' };
+  }else{
+    if(DATA.activeUserId === id) DATA.activeUserId = DATA.users[0].id;
+    if(STATE.historyFilter.userId === id) STATE.historyFilter.userId = 'all';
+  }
   const ok = commit(); render(); if(ok) toast('ユーザーを削除しました');
 }
 
