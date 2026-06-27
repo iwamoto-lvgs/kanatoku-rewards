@@ -643,7 +643,7 @@ function saveRecord(continueEntry){
     const p = DATA.payments.find(x => x.id === f.editingId);
     if(p){ p.service=f.service; p.amount=amount; p.rate=f.rate; p.date=f.date; p.memo=f.memo.trim(); }
     const ok = commit();
-    STATE.tab = 'history'; render(); if(ok) toast('更新しました');
+    STATE.tab = 'history'; pushNav(); render(); if(ok) toast('更新しました');
     return;
   }
 
@@ -661,7 +661,7 @@ function saveRecord(continueEntry){
     if(ok) toast('記録しました。続けて入力できます');
   }else{
     STATE.recordForm = newForm();
-    STATE.tab = 'home'; render(); if(ok) toast('記録しました');
+    STATE.tab = 'home'; pushNav(); render(); if(ok) toast('記録しました');
   }
 }
 
@@ -669,7 +669,7 @@ function deleteRecord(id){
   confirmModal('この記録を削除しますか？', ()=>{
     DATA.payments = DATA.payments.filter(p => p.id !== id);
     const ok = commit();
-    STATE.tab = 'history'; render(); if(ok) toast('削除しました');
+    STATE.tab = 'history'; pushNav(); render(); if(ok) toast('削除しました');
   });
 }
 
@@ -955,7 +955,7 @@ function importJSON(file){
       };
       STATE.historyFilter = { service:'all', userId:'all' };
       STATE.tab = 'home';
-      const ok = commit(); render(); if(ok) toast('インポートしました');
+      const ok = commit(); pushNav(); render(); if(ok) toast('インポートしました');
     }, { yesLabel:'インポートする', danger:false });
   };
   reader.readAsText(file);
@@ -969,6 +969,7 @@ function clearAllData(){
     STATE.historyFilter = { service:'all', userId:'all' };
     STATE.tab = 'home';
     const ok = commit();
+    pushNav();
     render();
     if(ok) toast('データを初期化しました');
   }, { yesLabel:'すべて削除する', danger:true });
@@ -1008,9 +1009,35 @@ document.addEventListener('keydown', e=>{
   if(e.key === 'Escape' && qs('#modalRoot').firstChild) closeModal();
 });
 
+/* =========================================================================
+   ブラウザ履歴連動（戻る/進むでアプリ内の画面遷移を辿る）
+   ========================================================================= */
+// 現在の画面状態のスナップショット。history.state に保存し popstate で復元する。
+function navState(){
+  return {
+    tab: STATE.tab,
+    historyFilter: { ...STATE.historyFilter },
+    recordForm: STATE.recordForm ? { ...STATE.recordForm } : null,
+  };
+}
+// 画面遷移を1件、履歴に積む（遷移後の状態を確定してから呼ぶ）。
+function pushNav(){ history.pushState(navState(), ''); }
+
+window.addEventListener('popstate', e=>{
+  if(qs('#modalRoot').firstChild) closeModal();   // 開いているモーダルがあれば先に閉じる
+  const s = e.state;
+  if(!s || !s.tab) return;                          // 初期エントリより前は通常のブラウザバック（離脱）
+  STATE.tab = s.tab;
+  if(s.historyFilter) STATE.historyFilter = s.historyFilter;
+  if(s.recordForm)    STATE.recordForm = s.recordForm;
+  render();
+});
+
 function goTab(tab){
+  const changed = tab !== STATE.tab;
   if(tab === 'record') STATE.recordForm = newForm();
   STATE.tab = tab;
+  if(changed) pushNav();
   render();
 }
 function editPayment(id){
@@ -1018,6 +1045,7 @@ function editPayment(id){
   if(!p) return;
   STATE.recordForm = { editingId:p.id, service:p.service, amount:p.amount, rate:p.rate, date:p.date, memo:p.memo || '' };
   STATE.tab = 'record';
+  pushNav();
   render();
 }
 
@@ -1040,6 +1068,7 @@ function init(){
   STATE.recordForm = newForm();
   STATE.historyFilter = { service:'all', userId:'all' };
   commit();   // grantedAmount を初期計算して保存
+  history.replaceState(navState(), '');   // 初期画面を履歴の起点にする
   render();
 }
 init();
