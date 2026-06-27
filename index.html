@@ -513,7 +513,7 @@ function renderHome(){
             <span class="chev">${IC.chevronDown(13)}</span>
           </div>
         </button>
-        <button class="avatar avatar-btn" data-action="edit-active-avatar" aria-label="${esc(u.name)}のアイコンを変更">${avatarInner(u)}</button>
+        <button class="avatar avatar-btn" data-action="switch-user-open" aria-label="ユーザーを切り替え">${avatarInner(u)}</button>
       </div>
 
       <button type="button" class="summary" data-action="filter-history" data-service="all" aria-label="すべての履歴を見る">
@@ -1074,7 +1074,6 @@ document.addEventListener('click', e=>{
     case 'switch-user-open': switchUserModal(); break;
     case 'switch-user':      DATA.activeUserId = id; saveData(DATA); closeModal(); render(); break;
     case 'add-user':         userModal(null); break;
-    case 'edit-active-avatar': userModal(activeUser()); break;
     case 'edit-user':        e.stopPropagation(); userModal(DATA.users.find(u => u.id === id)); break;
     case 'export':           exportJSON(); break;
     case 'import':           qs('#fileInput').click(); break;
