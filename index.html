@@ -6,8 +6,13 @@
 <meta name="theme-color" content="#F4F6F9">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="かなトク">
+<meta name="application-name" content="かなトク">
+<meta name="description" content="かなトク（神奈川県のキャッシュレス還元キャンペーン）の還元上限を決済サービスごとに管理するアプリ。">
 <title>かなトク進捗管理</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231565C0'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='20' font-weight='bold' fill='white' text-anchor='middle'%3E¥%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
 <!--
   かなトク進捗管理アプリ — 単一ファイル / サーバー不要 / localStorage 永続化
   ・計算ロジックは IMPLEMENTATION_SPEC §2 の順序固定の純粋関数（calcGrant / calcBreakdown）
@@ -1162,6 +1167,14 @@ function init(){
   render();
 }
 init();
+</script>
+<script>
+  // Service Worker 登録（PWA: オフライン動作・インストール）。相対パスでサブパス配信にも対応。
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
 </script>
 </body>
 </html>
