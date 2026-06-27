@@ -77,7 +77,8 @@
   .avatar.sm{ width:34px; height:34px; font-size:14px; }
 
   /* ===== summary card ===== */
-  .summary{ margin:0 20px; background:var(--accent); border-radius:22px; padding:18px 20px 20px; color:#fff; box-shadow:var(--accent-shadow); }
+  .summary{ display:block; text-align:left; font:inherit; cursor:pointer; -webkit-appearance:none; appearance:none; margin:0 20px; background:var(--accent); border:none; border-radius:22px; padding:18px 20px 20px; color:#fff; box-shadow:var(--accent-shadow); }
+  .summary:active{ filter:brightness(.97); }
   .summary .s-label{ font-size:12px; opacity:.88; font-weight:600; }
   .summary .s-amount{ display:flex; align-items:baseline; gap:8px; margin-top:5px; }
   .summary .s-amount .big{ font-size:36px; font-weight:800; letter-spacing:-.02em; }
@@ -90,7 +91,8 @@
   .section-label{ font-size:12px; font-weight:700; color:var(--text-3); letter-spacing:.04em; padding:18px 22px 8px; }
 
   /* ===== service cards ===== */
-  .svc-card{ background:var(--surface); border-radius:18px; padding:15px 16px; margin-bottom:11px; border:1px solid var(--border); box-shadow:var(--card-shadow); }
+  .svc-card{ display:block; width:100%; text-align:left; font:inherit; color:inherit; cursor:pointer; -webkit-appearance:none; appearance:none; background:var(--surface); border-radius:18px; padding:15px 16px; margin-bottom:11px; border:1px solid var(--border); box-shadow:var(--card-shadow); }
+  .svc-card:active{ background:var(--surface-2); }
   .svc-top{ display:flex; align-items:center; gap:11px; }
   .logo-tile{ width:40px; height:40px; border-radius:11px; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex-shrink:0; }
   .logo-tile.sm{ width:38px; height:38px; font-size:12px; border-radius:10px; }
@@ -457,7 +459,7 @@ function renderHome(){
     const done = residual <= 0;
     const pct = Math.min(100, Math.round(c / SERVICE_CAP * 100));
     return `
-      <div class="svc-card">
+      <button type="button" class="svc-card" data-action="filter-history" data-service="${s.id}" aria-label="${esc(s.name)} の履歴を見る">
         <div class="svc-top">
           <div class="logo-tile" style="background:${s.color}">${esc(s.logo)}</div>
           <div class="svc-meta">
@@ -477,7 +479,7 @@ function renderHome(){
               <span>10%店 <b>${yen(residual/RATE_LOW)}</b></span>
             </div>
           </div>` }
-      </div>`;
+      </button>`;
   }).join('');
 
   return `
@@ -493,12 +495,12 @@ function renderHome(){
         <div class="avatar">${esc(firstChar(u.name))}</div>
       </div>
 
-      <div class="summary">
+      <button type="button" class="summary" data-action="filter-history" data-service="all" aria-label="すべての履歴を見る">
         <div class="s-label">総付与額（このユーザー）</div>
         <div class="s-amount"><span class="big">${yen(total)}</span><span class="max">/ ${yen(TOTAL_CAP)}</span></div>
         <div class="bar on-accent"><i style="width:${totalPct}%"></i></div>
         <div class="s-note">全6サービス上限まで ${totalPct}%</div>
-      </div>
+      </button>
 
       <div class="section-label">サービス別の残枠</div>
       <div class="pad">${cards}</div>
@@ -983,6 +985,7 @@ document.addEventListener('click', e=>{
 
   switch(action){
     case 'tab':              goTab(target.dataset.tab); break;
+    case 'filter-history':   STATE.historyFilter = { service:target.dataset.service, userId:'all' }; goTab('history'); break;
     case 'switch-user-open': switchUserModal(); break;
     case 'switch-user':      DATA.activeUserId = id; saveData(DATA); closeModal(); render(); break;
     case 'add-user':         userModal(null); break;
