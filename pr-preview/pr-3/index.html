@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F6F9">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>かなトク進捗管理</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231565C0'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='20' font-weight='bold' fill='white' text-anchor='middle'%3E¥%3C/text%3E%3C/svg%3E">
+<!--
+  かなトク進捗管理アプリ — 単一ファイル / サーバー不要 / localStorage 永続化
+  ・計算ロジックは IMPLEMENTATION_SPEC §2 の順序固定の純粋関数（calcGrant / calcBreakdown）
+  ・保存は loadData()/saveData() ラッパー経由（キー接頭辞 kanatoku:）
+  フォントは Noto Sans JP（Google Fonts）。オフライン時は system-ui へフォールバックし、
+  機能は外部依存なしで完結する（CDN は表示品質向上のための任意要素）。
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --accent:#1565C0;
+    --bg:#F4F6F9;
+    --surface:#FFFFFF;
+    --surface-2:#F7F9FC;
+    --text:#16202E;
+    --text-2:#5B6573;
+    --text-3:#8A94A3;
+    --border:#EEF1F5;
+    --border-input:#E6EAF0;
+    --success:#1E8E5A; --success-bg:#E7F5EE;
+    --warn:#C77700; --warn-text:#7A5200; --warn-bg:#FFF6E6; --warn-border:#F6E2BC;
+    --error:#C0392B; --error-text:#A02B22; --error-bg:#FDECEC; --error-border:#F4C7C7;
+    --inactive:#9AA4B2;
+    --card-shadow:0 1px 3px rgba(16,24,40,.05);
+    --accent-shadow:0 10px 24px rgba(21,101,192,.28);
+  }
+  *{ box-sizing:border-box; -webkit-font-smoothing:antialiased; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; padding:0; height:100%; }
+  body{
+    font-family:'Noto Sans JP', system-ui, -apple-system, sans-serif;
+    background:var(--bg); color:var(--text);
+    overflow:hidden;
+  }
+  button{ font-family:inherit; }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  #app{
+    display:flex; flex-direction:column;
+    height:100dvh; width:100%; max-width:430px; margin:0 auto;
+    background:var(--bg); position:relative; overflow:hidden;
+  }
+  #view{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; }
+
+  @media (min-width:480px){
+    body{ background:#dde3ec; }
+    #app{
+      height:min(920px, calc(100dvh - 40px)); margin-top:20px;
+      border-radius:38px; overflow:hidden;
+      box-shadow:0 30px 70px rgba(16,24,40,.18), 0 0 0 1px rgba(16,24,40,.06);
+    }
+  }
+
+  .screen{ padding-top:max(env(safe-area-inset-top), 10px); padding-bottom:20px; min-height:100%; }
+  .pad{ padding-left:20px; padding-right:20px; }
+  svg{ display:block; }
+
+  /* ===== header (dashboard) ===== */
+  .dash-head{ display:flex; align-items:center; justify-content:space-between; padding:8px 22px 16px; }
+  .user-block{ display:flex; flex-direction:column; gap:3px; background:none; border:none; padding:0; text-align:left; cursor:pointer; }
+  .user-label{ font-size:11px; color:var(--text-3); font-weight:700; letter-spacing:.05em; }
+  .user-name-row{ display:flex; align-items:center; gap:6px; }
+  .user-name{ font-size:21px; font-weight:800; color:var(--text); }
+  .user-block .chev{ color:var(--text-3); }
+  .avatar{ width:40px; height:40px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; flex-shrink:0; }
+  .avatar.sm{ width:34px; height:34px; font-size:14px; }
+
+  /* ===== summary card ===== */
+  .summary{ margin:0 20px; background:var(--accent); border-radius:22px; padding:18px 20px 20px; color:#fff; box-shadow:var(--accent-shadow); }
+  .summary .s-label{ font-size:12px; opacity:.88; font-weight:600; }
+  .summary .s-amount{ display:flex; align-items:baseline; gap:8px; margin-top:5px; }
+  .summary .s-amount .big{ font-size:36px; font-weight:800; letter-spacing:-.02em; }
+  .summary .s-amount .max{ opacity:.8; font-size:14px; }
+  .summary .s-note{ font-size:12px; opacity:.88; margin-top:9px; }
+  .bar{ height:8px; border-radius:99px; margin-top:12px; overflow:hidden; }
+  .bar.on-accent{ background:rgba(255,255,255,.25); }
+  .bar.on-accent > i{ display:block; height:100%; background:#fff; border-radius:99px; }
+
+  .section-label{ font-size:12px; font-weight:700; color:var(--text-3); letter-spacing:.04em; padding:18px 22px 8px; }
+
+  /* ===== service cards ===== */
+  .svc-card{ background:var(--surface); border-radius:18px; padding:15px 16px; margin-bottom:11px; border:1px solid var(--border); box-shadow:var(--card-shadow); }
+  .svc-top{ display:flex; align-items:center; gap:11px; }
+  .logo-tile{ width:40px; height:40px; border-radius:11px; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex-shrink:0; }
+  .logo-tile.sm{ width:38px; height:38px; font-size:12px; border-radius:10px; }
+  .svc-meta{ flex:1; min-width:0; }
+  .svc-name{ font-size:15px; font-weight:700; color:var(--text); }
+  .svc-sub{ font-size:12px; color:var(--text-3); }
+  .residual{ text-align:right; flex-shrink:0; }
+  .residual .r-l{ font-size:10px; color:var(--text-3); font-weight:600; }
+  .residual .r-v{ font-size:15px; font-weight:800; color:var(--text); }
+  .badge-done{ display:flex; align-items:center; gap:4px; background:var(--success-bg); color:var(--success); font-size:12px; font-weight:700; padding:5px 10px; border-radius:99px; flex-shrink:0; }
+  .svc-bar{ height:7px; border-radius:99px; background:var(--border); margin-top:12px; overflow:hidden; }
+  .svc-bar > i{ display:block; height:100%; border-radius:99px; }
+  .est-box{ margin-top:12px; background:var(--surface-2); border-radius:11px; padding:10px 12px; }
+  .est-box .e-t{ font-size:11px; font-weight:700; color:var(--text); margin-bottom:4px; }
+  .est-box .e-row{ display:flex; gap:18px; font-size:12px; color:var(--text-2); }
+  .est-box b{ color:var(--text); }
+
+  /* ===== screen title ===== */
+  .scr-title{ font-size:22px; font-weight:800; color:var(--text); padding:12px 22px 6px; }
+  .field-label{ font-size:12px; font-weight:700; color:var(--text-2); margin:16px 2px 8px; }
+  .field-label.first{ margin-top:8px; }
+
+  /* ===== record form ===== */
+  .svc-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .svc-chip{ display:flex; align-items:center; gap:6px; padding:9px 8px; border-radius:11px; border:1.5px solid var(--border-input); background:var(--surface); font-size:12px; font-weight:600; color:var(--text-3); cursor:pointer; }
+  .svc-chip .dot{ width:9px; height:9px; border-radius:3px; flex-shrink:0; }
+  .svc-chip.active{ border-color:var(--accent); background:rgba(21,101,192,.07); color:var(--text); font-weight:700; }
+
+  .amount-field{ background:var(--surface); border:1.5px solid var(--accent); border-radius:13px; padding:12px 16px; display:flex; align-items:baseline; gap:6px; }
+  .amount-field .yen{ font-size:18px; color:var(--text-3); font-weight:700; }
+  .amount-field input{ flex:1; border:none; outline:none; background:transparent; font:800 28px/1 'Noto Sans JP',sans-serif; color:var(--text); width:100%; min-width:0; padding:0; }
+  .amount-field input::placeholder{ color:#C2CAD4; }
+
+  .row2{ display:flex; gap:12px; }
+  .row2 > div{ flex:1; min-width:0; }
+  .seg{ display:flex; background:var(--border); border-radius:11px; padding:3px; }
+  .seg button{ flex:1; text-align:center; padding:8px 0; border-radius:9px; border:none; background:transparent; font-size:13px; font-weight:600; color:var(--text-3); cursor:pointer; }
+  .seg button.active{ background:#fff; color:var(--text); font-weight:800; box-shadow:0 1px 2px rgba(0,0,0,.08); }
+  .date-field{ position:relative; display:flex; align-items:center; }
+  .date-field input{ width:100%; appearance:none; -webkit-appearance:none; background:var(--surface); border:1.5px solid var(--border-input); border-radius:11px; padding:9px 12px; font:600 13px 'Noto Sans JP',sans-serif; color:var(--text); }
+  .memo-input{ width:100%; background:var(--surface); border:1.5px solid var(--border-input); border-radius:11px; padding:11px 13px; font:600 13px 'Noto Sans JP',sans-serif; color:var(--text); outline:none; }
+  .memo-input::placeholder{ color:var(--text-3); font-weight:600; }
+
+  .preview-card{ margin-top:18px; background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:var(--card-shadow); }
+  .preview-card .p-label{ font-size:11px; font-weight:700; color:var(--text-3); letter-spacing:.04em; }
+  .preview-card .p-amount{ font-size:32px; font-weight:800; color:var(--accent); margin-top:2px; }
+  .preview-card .p-amount.muted{ color:#C2CAD4; }
+  .p-hint{ font-size:12px; color:var(--text-3); margin-top:6px; font-weight:600; }
+  .breakdown{ margin-top:12px; border-top:1px dashed var(--border-input); padding-top:12px; display:flex; flex-direction:column; gap:7px; font-size:12.5px; }
+  .bd-row{ display:flex; justify-content:space-between; gap:10px; color:var(--text-2); }
+  .bd-row .v{ color:var(--text); font-weight:600; }
+  .bd-row .v.warn{ color:var(--warn); font-weight:700; }
+  .bd-row .v.strong{ font-weight:700; }
+  .banner{ display:flex; align-items:flex-start; gap:8px; border-radius:10px; padding:9px 11px; }
+  .banner .b-ic{ flex-shrink:0; margin-top:1px; }
+  .banner span{ font-size:12px; line-height:1.5; font-weight:600; }
+  .banner.warn{ margin-top:12px; background:var(--warn-bg); border:1px solid var(--warn-border); }
+  .banner.warn .b-ic{ color:var(--warn); } .banner.warn span{ color:var(--warn-text); }
+  .banner.error{ margin-top:8px; background:var(--error-bg); border:1px solid var(--error-border); }
+  .banner.error .b-ic{ color:var(--error); } .banner.error span{ color:var(--error-text); }
+
+  .btn-primary{ display:block; width:100%; margin-top:16px; background:var(--accent); color:#fff; text-align:center; padding:15px; border:none; border-radius:14px; font-size:15px; font-weight:800; cursor:pointer; box-shadow:0 8px 18px rgba(21,101,192,.28); }
+  .btn-delete-link{ display:block; width:100%; margin-top:12px; background:none; border:none; color:var(--error); font-size:13px; font-weight:700; cursor:pointer; padding:10px; }
+
+  /* ===== history ===== */
+  .filter-row{ display:flex; gap:8px; padding:0 20px 14px; flex-wrap:wrap; }
+  .filter-pill{ appearance:none; -webkit-appearance:none; border:1.5px solid var(--border-input); border-radius:99px; padding:7px 30px 7px 13px; font-size:12.5px; font-weight:700; color:var(--text); cursor:pointer;
+    background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A94A3' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center; }
+  .filter-pill.active{ border-color:var(--accent); color:var(--accent); background-color:rgba(21,101,192,.08);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231565C0' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
+  .date-head{ font-size:12px; color:var(--text-3); font-weight:700; margin:6px 2px 8px; }
+  .hist-card{ background:var(--surface); border-radius:16px; border:1px solid var(--border); overflow:hidden; margin-bottom:14px; box-shadow:0 1px 3px rgba(16,24,40,.04); }
+  .hist-row{ display:flex; align-items:center; gap:12px; padding:13px 14px; border-bottom:1px solid #F1F4F8; cursor:pointer; background:none; border-left:none; border-right:none; border-top:none; width:100%; text-align:left; }
+  .hist-row:last-child{ border-bottom:none; }
+  .hist-row:active{ background:#FAFBFD; }
+  .hist-info{ flex:1; min-width:0; }
+  .hist-name{ font-size:14.5px; font-weight:700; color:var(--text); }
+  .hist-sub{ font-size:12px; color:var(--text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hist-right{ text-align:right; flex-shrink:0; }
+  .hist-amt{ font-size:14.5px; font-weight:700; color:var(--text); }
+  .hist-grant{ font-size:12px; font-weight:800; color:var(--success); }
+  .empty{ text-align:center; color:var(--text-3); font-size:13px; font-weight:600; padding:48px 20px; line-height:1.8; }
+
+  /* ===== settings ===== */
+  .group-card{ background:var(--surface); border-radius:16px; border:1px solid var(--border); overflow:hidden; }
+  .urow{ display:flex; align-items:center; gap:8px; padding:13px 15px; border-bottom:1px solid #F1F4F8; }
+  .urow:last-child{ border-bottom:none; }
+  .urow-main{ flex:1; display:flex; align-items:center; gap:12px; min-width:0; padding:0; background:none; border:none; cursor:pointer; text-align:left; color:inherit; }
+  .urow .u-name{ flex:1; font-size:15px; font-weight:600; color:var(--text); min-width:0; }
+  .urow .u-name.active{ font-weight:700; }
+  .badge-using{ font-size:11px; font-weight:700; color:var(--accent); background:rgba(21,101,192,.1); padding:4px 9px; border-radius:99px; }
+  .icon-btn{ background:none; border:none; padding:4px; cursor:pointer; color:#B7C0CC; display:flex; }
+  .add-row{ display:flex; align-items:center; gap:9px; padding:13px 15px; color:var(--accent); width:100%; background:none; border:none; cursor:pointer; }
+  .add-row span{ font-size:14px; font-weight:700; }
+  .data-row{ display:flex; align-items:center; gap:12px; padding:14px 15px; border-bottom:1px solid #F1F4F8; width:100%; background:none; border-left:none; border-right:none; border-top:none; text-align:left; cursor:pointer; color:var(--text); }
+  .data-row:last-child{ border-bottom:none; }
+  .data-row span{ flex:1; font-size:14.5px; font-weight:600; color:var(--text); }
+  .data-row .chev{ color:#C2CAD4; }
+  .data-row.danger{ color:var(--error); }
+  .data-row.danger > span:not(.chev){ color:var(--error); }
+  .notice{ display:flex; align-items:flex-start; gap:9px; background:var(--warn-bg); border:1px solid var(--warn-border); border-radius:13px; padding:12px 13px; margin-top:12px; }
+  .notice .b-ic{ color:var(--warn); flex-shrink:0; margin-top:1px; }
+  .notice span{ font-size:12px; color:var(--warn-text); line-height:1.6; }
+  .req-card{ background:var(--surface); border-radius:16px; border:1px solid var(--border); padding:14px 15px; font-size:12.5px; color:var(--text-2); line-height:1.9; }
+  .req-card b{ color:var(--text); }
+
+  /* ===== tab bar ===== */
+  .tabbar{ flex-shrink:0; display:flex; justify-content:space-around; align-items:flex-start; background:var(--surface); border-top:1px solid var(--border); padding-top:9px; padding-bottom:max(env(safe-area-inset-bottom), 10px); }
+  .tab{ display:flex; flex-direction:column; align-items:center; gap:3px; background:none; border:none; cursor:pointer; color:var(--inactive); padding:2px 10px; }
+  .tab span{ font-size:10px; font-weight:600; }
+  .tab.active{ color:var(--accent); }
+  .tab.active span{ font-weight:700; }
+
+  /* ===== modal ===== */
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(16,24,40,.45); display:flex; align-items:flex-end; justify-content:center; z-index:50; }
+  .modal{ background:#fff; width:100%; max-width:430px; border-radius:22px 22px 0 0; padding:22px 20px max(22px, env(safe-area-inset-bottom)); animation:slideup .22s cubic-bezier(.2,.8,.2,1); }
+  @keyframes slideup{ from{ transform:translateY(24px); opacity:.4; } to{ transform:translateY(0); opacity:1; } }
+  @media (min-width:480px){
+    .modal-backdrop{ align-items:center; }
+    .modal{ border-radius:22px; margin:20px; animation:none; }
+  }
+  .modal-title{ font-size:17px; font-weight:800; color:var(--text); margin-bottom:14px; }
+  .modal-input{ width:100%; background:var(--surface); border:1.5px solid var(--border-input); border-radius:12px; padding:13px 14px; font:600 15px 'Noto Sans JP',sans-serif; color:var(--text); outline:none; margin-bottom:16px; }
+  .modal-input:focus{ border-color:var(--accent); }
+  .modal-actions{ display:flex; flex-direction:column; gap:9px; }
+  .btn{ padding:14px; border-radius:12px; border:none; font-size:15px; font-weight:800; cursor:pointer; width:100%; }
+  .btn-accent{ background:var(--accent); color:#fff; }
+  .btn-ghost{ background:var(--border); color:var(--text-2); font-weight:700; }
+  .btn-danger{ background:var(--error-bg); color:var(--error-text); font-weight:700; }
+  .sheet-list{ display:flex; flex-direction:column; gap:4px; margin-bottom:16px; }
+  .sheet-row{ display:flex; align-items:center; gap:12px; padding:11px 8px; border:none; background:none; border-radius:12px; cursor:pointer; width:100%; text-align:left; }
+  .sheet-row:active{ background:var(--bg); }
+  .sheet-name{ flex:1; font-size:15px; font-weight:700; color:var(--text); }
+  .sheet-check{ color:var(--accent); }
+
+  /* ===== toast ===== */
+  .toast{ position:fixed; left:50%; bottom:calc(86px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(8px); background:#16202E; color:#fff; padding:10px 18px; border-radius:99px; font-size:13px; font-weight:700; z-index:60; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
+  .toast.show{ opacity:.96; transform:translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+  <main id="view"></main>
+  <nav class="tabbar" id="tabbar"></nav>
+</div>
+<div id="modalRoot"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileInput" accept=".json,application/json" hidden>
+
+<script>
+"use strict";
+/* =========================================================================
+   定数（キャンペーン要項由来 / IMPLEMENTATION_SPEC §1・§2）
+   ========================================================================= */
+/* @test:start  ← この区間（定数＋計算ロジック）は test/calc.test.js が抽出して検証する。
+   UI・保存層に依存しない純粋部分のみを置くこと（document / localStorage 等を持ち込まない）。 */
+const PER_TX_CAP   = 1500;   // 1回の支払いあたり付与上限
+const SERVICE_CAP  = 2500;   // サービスあたり付与上限
+const TOTAL_CAP    = 15000;  // 全6サービス上限合計（2500 × 6）
+const RATE_HIGH    = 0.20;   // 中小・小規模店
+const RATE_LOW     = 0.10;   // 大手店
+const STORAGE_KEY  = 'kanatoku:data';
+
+const SERVICES = [
+  { id:'aeonpay',    name:'AEON Pay', short:'AEON',   color:'#E5006E', logo:'A'  },
+  { id:'aupay',      name:'au PAY',   short:'au PAY', color:'#EB5505', logo:'au' },
+  { id:'dpay',       name:'d払い',    short:'d払い',  color:'#D4006A', logo:'d'  },
+  { id:'paypay',     name:'PayPay',   short:'PayPay', color:'#FF0033', logo:'P'  },
+  { id:'merpay',     name:'メルペイ', short:'メルペイ', color:'#FF211D', logo:'m'  },
+  { id:'rakutenpay', name:'楽天ペイ', short:'楽天',   color:'#BF0000', logo:'R'  },
+];
+const svcMeta = id => SERVICES.find(s => s.id === id);
+
+/* =========================================================================
+   計算ロジック（純粋関数 / 順序固定。UI・保存層に依存しない）
+   ========================================================================= */
+function calcGrant(amount, rate, prior){
+  const theoretical  = amount * rate;                       // 理論付与
+  const afterPerTx   = Math.min(theoretical, PER_TX_CAP);   // 1回上限適用
+  const afterService = Math.min(afterPerTx, SERVICE_CAP - prior); // サービス上限適用
+  return Math.floor(Math.max(0, afterService));            // 実付与額（整数化＝端数切り捨て）
+}
+
+// プレビュー表示用に途中経過とフラグも返す
+function calcBreakdown(amount, rate, prior){
+  const theoretical  = amount * rate;
+  const afterPerTx   = Math.min(theoretical, PER_TX_CAP);
+  const remaining    = Math.max(0, SERVICE_CAP - prior);
+  const afterService = Math.min(afterPerTx, SERVICE_CAP - prior);
+  const granted      = Math.floor(Math.max(0, afterService));
+  return {
+    theoretical, afterPerTx, remaining, granted,
+    perTxApplied:  theoretical > PER_TX_CAP,        // 1回上限で丸めが発生
+    serviceCapped: afterPerTx > (SERVICE_CAP - prior), // サービス残枠で丸めが発生
+    alreadyFull:   prior >= SERVICE_CAP,
+    reachesCap:    prior + granted >= SERVICE_CAP,  // この記録で上限到達
+  };
+}
+/* @test:end */
+
+/* =========================================================================
+   保存層ラッパー（localStorage。将来のBaaS移行時はここだけ差し替える）
+   ========================================================================= */
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function saveData(data){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  }catch(e){
+    toast('保存に失敗しました（容量超過・プライベートモード等）');
+    return false;
+  }
+}
+
+/* =========================================================================
+   ユーティリティ
+   ========================================================================= */
+const yen = n => '¥' + Math.round(n).toLocaleString('ja-JP');
+const qs  = (s, r=document) => r.querySelector(s);
+const qsa = (s, r=document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const firstChar = s => Array.from(String(s||'').trim())[0] || '?';
+const genId = p => p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+function todayISO(){ const d=new Date(); const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
+const DAY_JA = ['日','月','火','水','木','金','土'];
+function fmtDateJa(iso){ const [y,m,d]=iso.split('-').map(Number); const dt=new Date(y,m-1,d); return `${dt.getMonth()+1}月${dt.getDate()}日 (${DAY_JA[dt.getDay()]})`; }
+
+/* =========================================================================
+   アイコン（inline SVG / stroke=currentColor）
+   ========================================================================= */
+const sv = (size, inner, sw=2) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${inner}</svg>`;
+const IC = {
+  home:(s)=>sv(s,`<path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/>`),
+  record:(s)=>sv(s,`<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>`),
+  history:(s)=>sv(s,`<path d="M3 6h18M3 12h18M3 18h12"/>`),
+  settings:(s)=>sv(s,`<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7L5.6 5.6"/>`),
+  chevronDown:(s,sw=2.5)=>sv(s,`<path d="M6 9l6 6 6-6"/>`,sw),
+  check:(s)=>sv(s,`<path d="M5 13l4 4L19 7"/>`,3),
+  warn:(s)=>sv(s,`<path d="M12 9v4M12 17h.01M10.3 3.9L2 18a2 2 0 001.7 3h16.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>`,2.2),
+  info:(s)=>sv(s,`<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>`,2.2),
+  infoBig:(s)=>sv(s,`<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>`,2.2),
+  download:(s)=>sv(s,`<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>`),
+  upload:(s)=>sv(s,`<path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 21h14"/>`),
+  pencil:(s)=>sv(s,`<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>`),
+  trash:(s)=>sv(s,`<path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13M10 11v6M14 11v6"/>`),
+  chevronRight:(s)=>`<svg width="${Math.round(s*0.58)}" height="${s}" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M1 1l6 6-6 6"/></svg>`,
+  plus:(s)=>sv(s,`<path d="M12 5v14M5 12h14"/>`,2.2),
+};
+
+/* =========================================================================
+   アプリ状態
+   ========================================================================= */
+let DATA = null;
+const STATE = {
+  tab:'home',
+  recordForm:null,
+  historyFilter:{ service:'all', userId:'all' },
+};
+
+function newForm(){
+  return { editingId:null, service:null, amount:'', rate:RATE_HIGH, date:todayISO(), memo:'' };
+}
+
+/* 初期状態（既定ユーザー1名・記録なし）。初回訪問時およびデータ全削除後に使う。
+   users.length > 0 を満たすため、init() で再度この初期状態に上書きされない。 */
+/* @test:data:start  freshData を test/data.test.js が抽出して検証する（genId はテスト側で注入）。 */
+function freshData(){
+  const uid = genId('u');
+  return { version:1, activeUserId:uid, users:[{ id:uid, name:'ユーザー' }], payments:[] };
+}
+/* @test:data:end */
+
+/* =========================================================================
+   集計（実付与累計は時系列順に純粋関数を再生して算出）
+   ========================================================================= */
+function replay(payments){
+  // date昇順 → id昇順（登録順）で確定的に再生
+  const sorted = [...payments].sort((a,b)=> a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const priors = {}; SERVICES.forEach(s => priors[s.id]=0);
+  const grants = {};
+  for(const p of sorted){
+    const prior = priors[p.service] || 0;
+    const g = calcGrant(p.amount, p.rate, prior);
+    grants[p.id] = g;
+    priors[p.service] = prior + g;
+  }
+  return { priors, grants };
+}
+
+// 変更を確定: 全ユーザーの grantedAmount を再計算して保存。保存成否を返す。
+function commit(){
+  DATA.users.forEach(u=>{
+    const pays = DATA.payments.filter(p => p.userId === u.id);
+    const { grants } = replay(pays);
+    pays.forEach(p => p.grantedAmount = grants[p.id]);
+  });
+  return saveData(DATA);
+}
+
+function serviceTotals(userId){
+  const cum = {}; SERVICES.forEach(s => cum[s.id]=0);
+  DATA.payments.filter(p => p.userId === userId).forEach(p => { cum[p.service] += (p.grantedAmount||0); });
+  return cum;
+}
+
+// プレビュー用の既付与累計。フォームの現在値を時系列に組み込んで再生し、
+// 当該レコード直前の同サービス累計を返す（commit と同じ並びで計算し、保存後の確定値と一致させる）。
+function previewPrior(form){
+  const userId = form.editingId
+    ? (DATA.payments.find(p => p.id === form.editingId)?.userId ?? DATA.activeUserId)
+    : DATA.activeUserId;
+  const others = DATA.payments.filter(p => p.userId === userId && p.id !== form.editingId);
+  const temp = { id: form.editingId || '__preview__', __new: !form.editingId,
+                 service: form.service, amount: Number(form.amount) || 0, rate: form.rate, date: form.date };
+  const all = [...others, temp].sort((a, b) => {
+    const d = a.date.localeCompare(b.date);
+    if(d) return d;
+    if(a.__new) return 1;   // 新規は同日内で最後（採番される id が最新になり commit でも最後に並ぶため）
+    if(b.__new) return -1;
+    return a.id.localeCompare(b.id);
+  });
+  const priors = {}; SERVICES.forEach(s => priors[s.id] = 0);
+  for(const p of all){
+    if(p === temp) return priors[form.service] || 0;
+    priors[p.service] = (priors[p.service] || 0) + calcGrant(p.amount, p.rate, priors[p.service] || 0);
+  }
+  return priors[form.service] || 0;
+}
+
+/* =========================================================================
+   描画
+   ========================================================================= */
+function render(){
+  const view = qs('#view');
+  if(STATE.tab === 'home')        view.innerHTML = renderHome();
+  else if(STATE.tab === 'record') view.innerHTML = renderRecord();
+  else if(STATE.tab === 'history')view.innerHTML = renderHistory();
+  else                            view.innerHTML = renderSettings();
+  renderTabbar();
+  view.scrollTop = 0;
+  if(STATE.tab === 'record')  bindRecord();
+  if(STATE.tab === 'history') bindHistory();
+}
+
+function activeUser(){ return DATA.users.find(u => u.id === DATA.activeUserId) || DATA.users[0]; }
+
+/* ----- ① ダッシュボード ----- */
+function renderHome(){
+  const u = activeUser();
+  const cum = serviceTotals(u.id);
+  const total = Object.values(cum).reduce((a,b)=>a+b, 0);
+  const totalPct = Math.min(100, Math.round(total / TOTAL_CAP * 100));
+
+  const cards = SERVICES.map(s=>{
+    const c = cum[s.id];
+    const residual = SERVICE_CAP - c;
+    const done = residual <= 0;
+    const pct = Math.min(100, Math.round(c / SERVICE_CAP * 100));
+    return `
+      <div class="svc-card">
+        <div class="svc-top">
+          <div class="logo-tile" style="background:${s.color}">${esc(s.logo)}</div>
+          <div class="svc-meta">
+            <div class="svc-name">${esc(s.name)}</div>
+            <div class="svc-sub">付与済 ${yen(c)} / ${yen(SERVICE_CAP)}</div>
+          </div>
+          ${ done
+            ? `<div class="badge-done">${IC.check(13)}上限達成</div>`
+            : `<div class="residual"><div class="r-l">残り</div><div class="r-v">${yen(residual)}</div></div>` }
+        </div>
+        <div class="svc-bar"><i style="width:${pct}%; background:${s.color}"></i></div>
+        ${ done ? '' : `
+          <div class="est-box">
+            <div class="e-t">残枠を使い切る目安支払額</div>
+            <div class="e-row">
+              <span>20%店 <b>${yen(residual/RATE_HIGH)}</b></span>
+              <span>10%店 <b>${yen(residual/RATE_LOW)}</b></span>
+            </div>
+          </div>` }
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="screen">
+      <div class="dash-head">
+        <button class="user-block" data-action="switch-user-open">
+          <div class="user-label">アクティブユーザー</div>
+          <div class="user-name-row">
+            <span class="user-name">${esc(u.name)}</span>
+            <span class="chev">${IC.chevronDown(13)}</span>
+          </div>
+        </button>
+        <div class="avatar">${esc(firstChar(u.name))}</div>
+      </div>
+
+      <div class="summary">
+        <div class="s-label">総付与額（このユーザー）</div>
+        <div class="s-amount"><span class="big">${yen(total)}</span><span class="max">/ ${yen(TOTAL_CAP)}</span></div>
+        <div class="bar on-accent"><i style="width:${totalPct}%"></i></div>
+        <div class="s-note">全6サービス上限まで ${totalPct}%</div>
+      </div>
+
+      <div class="section-label">サービス別の残枠</div>
+      <div class="pad">${cards}</div>
+    </div>`;
+}
+
+/* ----- ② 支払いを記録 ----- */
+function renderRecord(){
+  const f = STATE.recordForm;
+  const editing = !!f.editingId;
+  const amtVal = (f.amount !== '' && f.amount != null) ? Number(f.amount).toLocaleString('ja-JP') : '';
+
+  const chips = SERVICES.map(s => `
+    <button class="svc-chip ${f.service===s.id?'active':''}" data-service="${s.id}" aria-pressed="${f.service===s.id}">
+      <span class="dot" style="background:${s.color}"></span>${esc(s.short)}
+    </button>`).join('');
+
+  return `
+    <div class="screen">
+      <div class="scr-title">${editing ? '記録を編集' : '支払いを記録'}</div>
+      <div class="pad">
+        <div class="field-label first">決済サービス</div>
+        <div class="svc-grid" id="svcGrid">${chips}</div>
+
+        <div class="field-label">支払額</div>
+        <div class="amount-field">
+          <span class="yen" aria-hidden="true">¥</span>
+          <input id="amountInput" type="text" inputmode="numeric" placeholder="0" value="${amtVal}" autocomplete="off" aria-label="支払額（円）">
+        </div>
+
+        <div class="row2" style="margin-top:16px;">
+          <div>
+            <div class="field-label" style="margin-top:0;">還元率</div>
+            <div class="seg" id="rateSeg" role="group" aria-label="還元率">
+              <button data-rate="0.2" class="${f.rate===RATE_HIGH?'active':''}" aria-pressed="${f.rate===RATE_HIGH}">20%</button>
+              <button data-rate="0.1" class="${f.rate===RATE_LOW?'active':''}" aria-pressed="${f.rate===RATE_LOW}">10%</button>
+            </div>
+          </div>
+          <div>
+            <div class="field-label" style="margin-top:0;">日付</div>
+            <div class="date-field"><input id="dateInput" type="date" value="${esc(f.date)}" aria-label="日付"></div>
+          </div>
+        </div>
+
+        <div class="field-label">メモ（任意）</div>
+        <input id="memoInput" class="memo-input" type="text" placeholder="店名など" value="${esc(f.memo)}" maxlength="40" aria-label="メモ（任意）">
+
+        <div class="preview-card" id="previewCard"></div>
+
+        <button class="btn-primary" id="saveBtn">${editing ? '更新する' : '記録する'}</button>
+        ${ editing ? `<button class="btn-delete-link" id="deleteBtn">この記録を削除</button>` : '' }
+      </div>
+    </div>`;
+}
+
+function bindRecord(){
+  qsa('#svcGrid .svc-chip').forEach(el=>{
+    el.onclick = ()=>{ STATE.recordForm.service = el.dataset.service; refreshChips(); updatePreview(); };
+  });
+  qsa('#rateSeg button').forEach(el=>{
+    el.onclick = ()=>{ STATE.recordForm.rate = parseFloat(el.dataset.rate); refreshRate(); updatePreview(); };
+  });
+  const amt = qs('#amountInput');
+  amt.oninput = e=>{
+    const digits = e.target.value.replace(/[^\d]/g,'');
+    STATE.recordForm.amount = digits ? parseInt(digits,10) : '';
+    e.target.value = digits ? parseInt(digits,10).toLocaleString('ja-JP') : '';
+    updatePreview();
+  };
+  qs('#dateInput').onchange = e=>{ STATE.recordForm.date = e.target.value || todayISO(); };
+  qs('#memoInput').oninput   = e=>{ STATE.recordForm.memo = e.target.value; };
+  qs('#saveBtn').onclick     = saveRecord;
+  const del = qs('#deleteBtn'); if(del) del.onclick = ()=> deleteRecord(STATE.recordForm.editingId);
+  updatePreview();
+}
+function refreshChips(){
+  qsa('#svcGrid .svc-chip').forEach(el=>{
+    const on = el.dataset.service === STATE.recordForm.service;
+    el.classList.toggle('active', on); el.setAttribute('aria-pressed', on);
+  });
+}
+function refreshRate(){
+  qsa('#rateSeg button').forEach(el=>{
+    const on = parseFloat(el.dataset.rate) === STATE.recordForm.rate;
+    el.classList.toggle('active', on); el.setAttribute('aria-pressed', on);
+  });
+}
+
+function updatePreview(){
+  const f = STATE.recordForm;
+  const card = qs('#previewCard'); if(!card) return;
+  const amount = Number(f.amount) || 0;
+
+  if(!f.service || amount <= 0){
+    card.innerHTML = `
+      <div class="p-label">実付与額（自動計算）</div>
+      <div class="p-amount muted">¥0</div>
+      <div class="p-hint">決済サービスと支払額を入力してください</div>`;
+    return;
+  }
+
+  const prior = previewPrior(f);
+  const b = calcBreakdown(amount, f.rate, prior);
+  const name = svcMeta(f.service).name;
+  const ratePct = Math.round(f.rate * 100);
+
+  let rows = `<div class="bd-row"><span>理論付与（${yen(amount)} × ${ratePct}%）</span><span class="v">${yen(Math.floor(b.theoretical))}</span></div>`;
+  if(b.perTxApplied)
+    rows += `<div class="bd-row"><span>1回上限を適用</span><span class="v warn">${yen(PER_TX_CAP)}</span></div>`;
+  if(b.serviceCapped)
+    rows += `<div class="bd-row"><span>サービス残枠を適用（${esc(name)} 残${yen(b.remaining)}）</span><span class="v strong">${yen(b.granted)}</span></div>`;
+
+  let banners = '';
+  if(b.perTxApplied)
+    banners += `<div class="banner warn"><span class="b-ic">${IC.warn(16)}</span><span>1回上限により ${yen(PER_TX_CAP)} に丸められました</span></div>`;
+  if(b.alreadyFull)
+    banners += `<div class="banner error"><span class="b-ic">${IC.info(16)}</span><span>${esc(name)} はすでに上限（${yen(SERVICE_CAP)}）に達しています</span></div>`;
+  else if(b.reachesCap)
+    banners += `<div class="banner error"><span class="b-ic">${IC.info(16)}</span><span>この記録で ${esc(name)} は上限（${yen(SERVICE_CAP)}）に達します</span></div>`;
+
+  card.innerHTML = `
+    <div class="p-label">実付与額（自動計算）</div>
+    <div class="p-amount">${yen(b.granted)}</div>
+    <div class="breakdown">${rows}</div>
+    ${banners}`;
+}
+
+function saveRecord(){
+  const f = STATE.recordForm;
+  const amount = Number(f.amount) || 0;
+  if(!f.service){ toast('決済サービスを選択してください'); return; }
+  if(amount <= 0){ toast('支払額を入力してください'); return; }
+
+  if(f.editingId){
+    const p = DATA.payments.find(x => x.id === f.editingId);
+    if(p){ p.service=f.service; p.amount=amount; p.rate=f.rate; p.date=f.date; p.memo=f.memo.trim(); }
+    const ok = commit();
+    STATE.tab = 'history'; render(); if(ok) toast('更新しました');
+  }else{
+    DATA.payments.push({
+      id:genId('p'), userId:DATA.activeUserId, service:f.service,
+      amount, rate:f.rate, date:f.date, memo:f.memo.trim(), grantedAmount:0,
+    });
+    const ok = commit();
+    STATE.recordForm = newForm();
+    STATE.tab = 'home'; render(); if(ok) toast('記録しました');
+  }
+}
+
+function deleteRecord(id){
+  confirmModal('この記録を削除しますか？', ()=>{
+    DATA.payments = DATA.payments.filter(p => p.id !== id);
+    const ok = commit();
+    STATE.tab = 'history'; render(); if(ok) toast('削除しました');
+  });
+}
+
+/* ----- ③ 履歴 ----- */
+function renderHistory(){
+  const fil = STATE.historyFilter;
+
+  const svcOptions = `<option value="all">すべてのサービス</option>` +
+    SERVICES.map(s => `<option value="${esc(s.id)}" ${fil.service===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
+  const userOptions = `<option value="all">すべてのユーザー</option>` +
+    DATA.users.map(u => `<option value="${esc(u.id)}" ${fil.userId===u.id?'selected':''}>${esc(u.name)}</option>`).join('');
+
+  let list = DATA.payments.filter(p =>
+    (fil.service==='all' || p.service===fil.service) &&
+    (fil.userId==='all'  || p.userId===fil.userId)
+  );
+  list.sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+
+  let body;
+  if(list.length === 0){
+    body = `<div class="empty">該当する記録がありません。<br>「記録」タブから支払いを追加できます。</div>`;
+  }else{
+    const groups = [];
+    list.forEach(p=>{
+      let g = groups.find(x => x.date === p.date);
+      if(!g){ g = { date:p.date, items:[] }; groups.push(g); }
+      g.items.push(p);
+    });
+    body = groups.map(g=>{
+      const rows = g.items.map(p=>{
+        const m = svcMeta(p.service);
+        const sub = `${p.memo ? esc(p.memo)+'・' : ''}還元${Math.round(p.rate*100)}%`;
+        return `
+          <button class="hist-row" data-action="edit-payment" data-id="${esc(p.id)}">
+            <div class="logo-tile sm" style="background:${m.color}">${esc(m.logo)}</div>
+            <div class="hist-info">
+              <div class="hist-name">${esc(m.name)}</div>
+              <div class="hist-sub">${sub}</div>
+            </div>
+            <div class="hist-right">
+              <div class="hist-amt">${yen(p.amount)}</div>
+              <div class="hist-grant">+${yen(p.grantedAmount||0)}</div>
+            </div>
+          </button>`;
+      }).join('');
+      return `<div class="date-head">${fmtDateJa(g.date)}</div><div class="hist-card">${rows}</div>`;
+    }).join('');
+  }
+
+  return `
+    <div class="screen">
+      <div class="scr-title">履歴</div>
+      <div class="filter-row">
+        <select class="filter-pill ${fil.service!=='all'?'active':''}" id="filterService" aria-label="サービスで絞り込み">${svcOptions}</select>
+        <select class="filter-pill ${fil.userId!=='all'?'active':''}" id="filterUser" aria-label="ユーザーで絞り込み">${userOptions}</select>
+      </div>
+      <div class="pad">${body}</div>
+    </div>`;
+}
+function bindHistory(){
+  qs('#filterService').onchange = e=>{ STATE.historyFilter.service = e.target.value; render(); };
+  qs('#filterUser').onchange    = e=>{ STATE.historyFilter.userId  = e.target.value; render(); };
+}
+
+/* ----- ④ 設定 ----- */
+function renderSettings(){
+  const users = DATA.users.map(u=>{
+    const active = u.id === DATA.activeUserId;
+    const mainAria = active ? `${u.name}（使用中）を編集` : `${u.name} に切り替え`;
+    return `
+      <div class="urow">
+        <button type="button" class="urow-main" data-action="${active ? 'edit-user' : 'switch-user'}"
+                data-id="${esc(u.id)}" aria-label="${esc(mainAria)}">
+          <div class="avatar sm" style="background:${active ? 'var(--accent)' : '#C0C8D2'}">${esc(firstChar(u.name))}</div>
+          <div class="u-name ${active?'active':''}">${esc(u.name)}</div>
+        </button>
+        ${ active
+          ? `<span class="badge-using">使用中</span>`
+          : `<button type="button" class="icon-btn" data-action="edit-user" data-id="${esc(u.id)}" aria-label="${esc(u.name)} を編集">${IC.pencil(18)}</button>` }
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="screen">
+      <div class="scr-title">設定</div>
+      <div class="pad">
+        <div class="section-label" style="padding:8px 2px 8px;">ユーザー</div>
+        <div class="group-card">
+          ${users}
+          <button class="add-row" data-action="add-user">${IC.plus(20)}<span>ユーザーを追加</span></button>
+        </div>
+
+        <div class="section-label" style="padding:20px 2px 8px;">データ（バックアップ）</div>
+        <div class="group-card">
+          <button class="data-row" data-action="export">${IC.download(20)}<span>JSONエクスポート</span><span class="chev" style="flex:0;">${IC.chevronRight(14)}</span></button>
+          <button class="data-row" data-action="import">${IC.upload(20)}<span>JSONインポート</span><span class="chev" style="flex:0;">${IC.chevronRight(14)}</span></button>
+        </div>
+        <div class="notice">
+          <span class="b-ic">${IC.infoBig(17)}</span>
+          <span>データは端末内（localStorage）にのみ保存されます。ブラウザのデータ削除やプライベートモードで消える場合があるため、定期的なエクスポートを推奨します。</span>
+        </div>
+
+        <div class="section-label" style="padding:20px 2px 8px;">キャンペーン要項</div>
+        <div class="req-card">
+          還元率 中小店 <b>20%</b> ／ 大手店 <b>10%</b><br>
+          サービスあたり上限 <b>¥2,500</b><br>
+          1回あたり上限 <b>¥1,500</b><br>
+          期間 2026/6/19〜予算上限到達まで
+        </div>
+
+        <div class="section-label" style="padding:20px 2px 8px;">データの初期化</div>
+        <div class="group-card">
+          <button class="data-row danger" data-action="reset-data">${IC.trash(20)}<span>すべてのデータを削除</span><span class="chev" style="flex:0;">${IC.chevronRight(14)}</span></button>
+        </div>
+        <div class="notice">
+          <span class="b-ic">${IC.warn(17)}</span>
+          <span>すべての記録とユーザーが削除され、初期状態に戻ります。元に戻せないため、必要に応じて事前にエクスポートしてください。</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ----- タブバー ----- */
+function renderTabbar(){
+  const tabs = [
+    ['home','ホーム',IC.home],
+    ['record','記録',IC.record],
+    ['history','履歴',IC.history],
+    ['settings','設定',IC.settings],
+  ];
+  qs('#tabbar').innerHTML = tabs.map(([id,label,ic])=>
+    `<button class="tab ${STATE.tab===id?'active':''}" data-action="tab" data-tab="${id}">${ic(22)}<span>${label}</span></button>`
+  ).join('');
+}
+
+/* =========================================================================
+   モーダル / トースト
+   ========================================================================= */
+let lastFocused = null;
+function showModal(inner){
+  lastFocused = document.activeElement;
+  qs('#modalRoot').innerHTML =
+    `<div class="modal-backdrop" data-action="modal-close"><div class="modal" role="dialog" aria-modal="true" tabindex="-1">${inner}</div></div>`;
+  const modal = qs('#modalRoot .modal');
+  modal.addEventListener('keydown', trapFocus);
+  (modal.querySelector('input') || modal).focus();
+}
+function closeModal(){
+  const prev = lastFocused; lastFocused = null;
+  qs('#modalRoot').innerHTML = '';
+  if(prev && prev.isConnected) prev.focus();
+}
+// Tab を最初/最後の要素で循環させる（モーダル内にフォーカスを留める）
+function trapFocus(e){
+  if(e.key !== 'Tab') return;
+  const items = qsa('button, input, [tabindex]:not([tabindex="-1"])', e.currentTarget).filter(el => !el.disabled);
+  if(items.length === 0) return;
+  const first = items[0], last = items[items.length - 1];
+  if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+}
+
+function confirmModal(msg, onYes, {yesLabel='削除する', danger=true}={}){
+  showModal(`
+    <div class="modal-title">${esc(msg)}</div>
+    <div class="modal-actions">
+      <button class="btn ${danger?'btn-danger':'btn-accent'}" id="mYes">${esc(yesLabel)}</button>
+      <button class="btn btn-ghost" data-action="modal-close">キャンセル</button>
+    </div>`);
+  qs('#mYes').onclick = ()=>{ closeModal(); onYes(); };
+}
+
+function userModal(user){
+  const isEdit = !!user;
+  const canDelete = isEdit && DATA.users.length > 1;
+  showModal(`
+    <div class="modal-title">${isEdit ? 'ユーザーを編集' : 'ユーザーを追加'}</div>
+    <input class="modal-input" id="uName" placeholder="名前" value="${isEdit ? esc(user.name) : ''}" maxlength="20" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn btn-accent" id="uSave">${isEdit ? '保存' : '追加'}</button>
+      ${canDelete ? `<button class="btn btn-danger" id="uDel">このユーザーを削除</button>` : ''}
+      <button class="btn btn-ghost" data-action="modal-close">キャンセル</button>
+    </div>`);
+  const input = qs('#uName'); input.focus();
+  input.onkeydown = e=>{ if(e.key==='Enter') qs('#uSave').click(); };
+  qs('#uSave').onclick = ()=>{
+    const name = input.value.trim();
+    if(!name){ input.focus(); return; }
+    if(isEdit){ user.name = name; }
+    else{ DATA.users.push({ id:genId('u'), name }); }
+    closeModal(); const ok = commit(); render(); if(ok) toast(isEdit ? '保存しました' : 'ユーザーを追加しました');
+  };
+  if(canDelete){
+    qs('#uDel').onclick = ()=>{
+      closeModal();
+      confirmModal(`「${user.name}」と、このユーザーの記録をすべて削除しますか？`, ()=> deleteUser(user.id));
+    };
+  }
+}
+
+function deleteUser(id){
+  DATA.users = DATA.users.filter(u => u.id !== id);
+  DATA.payments = DATA.payments.filter(p => p.userId !== id);
+  if(DATA.activeUserId === id) DATA.activeUserId = DATA.users[0].id;
+  if(STATE.historyFilter.userId === id) STATE.historyFilter.userId = 'all';
+  const ok = commit(); render(); if(ok) toast('ユーザーを削除しました');
+}
+
+function switchUserModal(){
+  const rows = DATA.users.map(u=>{
+    const active = u.id === DATA.activeUserId;
+    return `
+      <button class="sheet-row" data-action="switch-user" data-id="${esc(u.id)}">
+        <span class="avatar sm" style="background:${active ? 'var(--accent)' : '#C0C8D2'}">${esc(firstChar(u.name))}</span>
+        <span class="sheet-name">${esc(u.name)}</span>
+        ${active ? `<span class="sheet-check">${IC.check(18)}</span>` : ''}
+      </button>`;
+  }).join('');
+  showModal(`
+    <div class="modal-title">ユーザーを切り替え</div>
+    <div class="sheet-list">${rows}</div>
+    <div class="modal-actions"><button class="btn btn-ghost" data-action="modal-close">閉じる</button></div>`);
+}
+
+let toastTimer;
+function toast(msg){
+  const t = qs('#toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 1900);
+}
+
+/* =========================================================================
+   エクスポート / インポート
+   ========================================================================= */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(DATA, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `kanatoku-backup-${todayISO().replace(/-/g,'')}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=> URL.revokeObjectURL(url), 1000);
+  toast('エクスポートしました');
+}
+
+function importJSON(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    let parsed;
+    try{ parsed = JSON.parse(reader.result); }
+    catch(e){ toast('JSONの読み込みに失敗しました'); return; }
+    if(!parsed || !Array.isArray(parsed.users) || !Array.isArray(parsed.payments) || parsed.users.length === 0){
+      toast('対応していない形式のファイルです'); return;
+    }
+    confirmModal('現在のデータを上書きしてインポートしますか？', ()=>{
+      // id は採番し直して属性インジェクションの経路を断ち、参照(userId)を付け替える。
+      // service / date / 参照整合性も検証し、不正な記録は取り込まない。
+      const idMap = {};
+      const users = parsed.users.map(u=>{
+        const nid = genId('u');
+        if(u && u.id != null) idMap[String(u.id)] = nid;
+        return { id:nid, name:String((u && u.name) || 'ユーザー').slice(0, 20) };
+      });
+      const validService = s => SERVICES.some(x => x.id === s);
+      const payments = parsed.payments
+        .filter(p => p && validService(p.service) && idMap[String(p.userId)] != null)
+        .map(p => ({
+          id: genId('p'),
+          userId: idMap[String(p.userId)],
+          service: p.service,
+          amount: Number(p.amount) || 0,
+          rate: p.rate === 0.1 ? 0.1 : 0.2,
+          date: /^\d{4}-\d{2}-\d{2}$/.test(p.date) ? p.date : todayISO(),
+          memo: String(p.memo || '').slice(0, 40),
+          grantedAmount: 0,
+        }));
+      DATA = {
+        version: 1,
+        users,
+        payments,
+        activeUserId: idMap[String(parsed.activeUserId)] || users[0].id,
+      };
+      STATE.historyFilter = { service:'all', userId:'all' };
+      STATE.tab = 'home';
+      const ok = commit(); render(); if(ok) toast('インポートしました');
+    }, { yesLabel:'インポートする', danger:false });
+  };
+  reader.readAsText(file);
+}
+
+/* すべての記録・ユーザーを削除して初期状態に戻す（取り消し不可） */
+function clearAllData(){
+  confirmModal('すべての記録とユーザーを削除して初期状態に戻しますか？この操作は取り消せません。', ()=>{
+    DATA = freshData();
+    STATE.recordForm = newForm();
+    STATE.historyFilter = { service:'all', userId:'all' };
+    STATE.tab = 'home';
+    const ok = commit();
+    render();
+    if(ok) toast('データを初期化しました');
+  }, { yesLabel:'すべて削除する', danger:true });
+}
+
+/* =========================================================================
+   イベント委譲（[data-action]）
+   ========================================================================= */
+document.addEventListener('click', e=>{
+  const target = e.target.closest('[data-action]');
+  if(!target) return;
+  const action = target.dataset.action;
+  const id = target.dataset.id;
+
+  switch(action){
+    case 'tab':              goTab(target.dataset.tab); break;
+    case 'switch-user-open': switchUserModal(); break;
+    case 'switch-user':      DATA.activeUserId = id; saveData(DATA); closeModal(); render(); break;
+    case 'add-user':         userModal(null); break;
+    case 'edit-user':        e.stopPropagation(); userModal(DATA.users.find(u => u.id === id)); break;
+    case 'export':           exportJSON(); break;
+    case 'import':           qs('#fileInput').click(); break;
+    case 'reset-data':       clearAllData(); break;
+    case 'edit-payment':     editPayment(id); break;
+    case 'modal-close':
+      // バックドロップは実体クリック時のみ閉じる（本体内クリックでは閉じない）。
+      // 明示的な閉じる/キャンセルボタンは、子要素クリックでも確実に閉じる。
+      if(target.classList.contains('modal-backdrop')){ if(e.target === target) closeModal(); }
+      else closeModal();
+      break;
+  }
+});
+
+// キーボード操作: Esc でモーダルを閉じる
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && qs('#modalRoot').firstChild) closeModal();
+});
+
+function goTab(tab){
+  if(tab === 'record') STATE.recordForm = newForm();
+  STATE.tab = tab;
+  render();
+}
+function editPayment(id){
+  const p = DATA.payments.find(x => x.id === id);
+  if(!p) return;
+  STATE.recordForm = { editingId:p.id, service:p.service, amount:p.amount, rate:p.rate, date:p.date, memo:p.memo || '' };
+  STATE.tab = 'record';
+  render();
+}
+
+qs('#fileInput').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(file) importJSON(file);
+  e.target.value = '';
+});
+
+/* =========================================================================
+   起動
+   ========================================================================= */
+function init(){
+  DATA = loadData();
+  if(!DATA || !Array.isArray(DATA.users) || DATA.users.length === 0){
+    DATA = freshData();
+  }
+  if(!Array.isArray(DATA.payments)) DATA.payments = [];   // 破損データへの防御
+  if(!DATA.users.some(u => u.id === DATA.activeUserId)) DATA.activeUserId = DATA.users[0].id;
+  STATE.recordForm = newForm();
+  STATE.historyFilter = { service:'all', userId:'all' };
+  commit();   // grantedAmount を初期計算して保存
+  render();
+}
+init();
+</script>
+</body>
+</html>
