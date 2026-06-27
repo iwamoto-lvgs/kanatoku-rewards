@@ -189,6 +189,8 @@
   .data-row:last-child{ border-bottom:none; }
   .data-row span{ flex:1; font-size:14.5px; font-weight:600; color:var(--text); }
   .data-row .chev{ color:#C2CAD4; }
+  .data-row.danger{ color:var(--error); }
+  .data-row.danger > span:not(.chev){ color:var(--error); }
   .notice{ display:flex; align-items:flex-start; gap:9px; background:var(--warn-bg); border:1px solid var(--warn-border); border-radius:13px; padding:12px 13px; margin-top:12px; }
   .notice .b-ic{ color:var(--warn); flex-shrink:0; margin-top:1px; }
   .notice span{ font-size:12px; color:var(--warn-text); line-height:1.6; }
@@ -339,6 +341,7 @@ const IC = {
   download:(s)=>sv(s,`<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>`),
   upload:(s)=>sv(s,`<path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 21h14"/>`),
   pencil:(s)=>sv(s,`<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>`),
+  trash:(s)=>sv(s,`<path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13M10 11v6M14 11v6"/>`),
   chevronRight:(s)=>`<svg width="${Math.round(s*0.58)}" height="${s}" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M1 1l6 6-6 6"/></svg>`,
   plus:(s)=>sv(s,`<path d="M12 5v14M5 12h14"/>`,2.2),
 };
@@ -356,6 +359,15 @@ const STATE = {
 function newForm(){
   return { editingId:null, service:null, amount:'', rate:RATE_HIGH, date:todayISO(), memo:'' };
 }
+
+/* データ全削除後の初期状態（既定ユーザー1名・記録なし）。
+   users.length > 0 を満たすため、init() でサンプルデータが再シードされない。 */
+/* @test:data:start  freshData を test/data.test.js が抽出して検証する（genId はテスト側で注入）。 */
+function freshData(){
+  const uid = genId('u');
+  return { version:1, activeUserId:uid, users:[{ id:uid, name:'ユーザー' }], payments:[] };
+}
+/* @test:data:end */
 
 /* 初回シード（デザインリファレンス相当のサンプルデータ） */
 function seedData(){
@@ -768,6 +780,15 @@ function renderSettings(){
           1回あたり上限 <b>¥1,500</b><br>
           期間 2026/6/19〜予算上限到達まで
         </div>
+
+        <div class="section-label" style="padding:20px 2px 8px;">データの初期化</div>
+        <div class="group-card">
+          <button class="data-row danger" data-action="reset-data">${IC.trash(20)}<span>すべてのデータを削除</span><span class="chev" style="flex:0;">${IC.chevronRight(14)}</span></button>
+        </div>
+        <div class="notice">
+          <span class="b-ic">${IC.warn(17)}</span>
+          <span>すべての記録とユーザーが削除され、初期状態に戻ります。元に戻せないため、必要に応じて事前にエクスポートしてください。</span>
+        </div>
       </div>
     </div>`;
 }
@@ -941,6 +962,19 @@ function importJSON(file){
   reader.readAsText(file);
 }
 
+/* すべての記録・ユーザーを削除して初期状態に戻す（取り消し不可） */
+function clearAllData(){
+  confirmModal('すべての記録とユーザーを削除して初期状態に戻しますか？この操作は取り消せません。', ()=>{
+    DATA = freshData();
+    STATE.recordForm = newForm();
+    STATE.historyFilter = { service:'all', userId:'all' };
+    STATE.tab = 'home';
+    const ok = commit();
+    render();
+    if(ok) toast('データを初期化しました');
+  }, { yesLabel:'すべて削除する', danger:true });
+}
+
 /* =========================================================================
    イベント委譲（[data-action]）
    ========================================================================= */
@@ -958,6 +992,7 @@ document.addEventListener('click', e=>{
     case 'edit-user':        e.stopPropagation(); userModal(DATA.users.find(u => u.id === id)); break;
     case 'export':           exportJSON(); break;
     case 'import':           qs('#fileInput').click(); break;
+    case 'reset-data':       clearAllData(); break;
     case 'edit-payment':     editPayment(id); break;
     case 'modal-close':
       // バックドロップは実体クリック時のみ閉じる（本体内クリックでは閉じない）。

@@ -33,7 +33,8 @@
 ├── Makefile                           # 開発用タスク（make help で一覧）
 ├── README.md                          # 本ファイル
 ├── test/
-│   └── calc.test.js                   # 計算ロジックのテスト（仕様 §2 を検証）
+│   ├── calc.test.js                   # 計算ロジックのテスト（仕様 §2 を検証）
+│   └── data.test.js                   # データ初期化（freshData）のテスト
 ├── .github/workflows/
 │   ├── ci.yml                         # PR / main push でテスト実行
 │   ├── deploy.yml                     # main を本番公開（gh-pages ルート）
@@ -68,7 +69,7 @@ make clean      # 生成物（public/）を削除
 make test
 ```
 
-検証内容は `IMPLEMENTATION_SPEC.md §2` の受け入れケース表（必ず通すべき7ケース）に加え、端数切り捨て・非負・累積時の上限頭打ち・丸め/上限到達フラグを含みます。これらのテストは CI（`ci.yml`）でも PR と main への push 時に自動実行されます。
+検証内容は `IMPLEMENTATION_SPEC.md §2` の受け入れケース表（必ず通すべき7ケース）に加え、端数切り捨て・非負・累積時の上限頭打ち・丸め/上限到達フラグを含みます。データ初期化機能については、同じマーカー方式（`@test:data:start` 〜 `@test:data:end`）で抽出した `freshData` の不変条件（ユーザー1名・記録なし・再シードガードを満たすこと）を `test/data.test.js` が検証します。これらのテストは CI（`ci.yml`）でも PR と main への push 時に自動実行されます。
 
 ## デプロイとプレビューの仕組み
 
