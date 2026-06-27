@@ -153,6 +153,7 @@
   .banner.error .b-ic{ color:var(--error); } .banner.error span{ color:var(--error-text); }
 
   .btn-primary{ display:block; width:100%; margin-top:16px; background:var(--accent); color:#fff; text-align:center; padding:15px; border:none; border-radius:14px; font-size:15px; font-weight:800; cursor:pointer; box-shadow:0 8px 18px rgba(21,101,192,.28); }
+  .btn-secondary{ display:block; width:100%; margin-top:10px; background:var(--surface); color:var(--accent); text-align:center; padding:14px; border:1.5px solid var(--accent); border-radius:14px; font-size:14px; font-weight:800; cursor:pointer; }
   .btn-delete-link{ display:block; width:100%; margin-top:12px; background:none; border:none; color:var(--error); font-size:13px; font-weight:700; cursor:pointer; padding:10px; }
 
   /* ===== history ===== */
@@ -548,7 +549,9 @@ function renderRecord(){
         <div class="preview-card" id="previewCard"></div>
 
         <button class="btn-primary" id="saveBtn">${editing ? '更新する' : '記録する'}</button>
-        ${ editing ? `<button class="btn-delete-link" id="deleteBtn">この記録を削除</button>` : '' }
+        ${ editing
+            ? `<button class="btn-delete-link" id="deleteBtn">この記録を削除</button>`
+            : `<button class="btn-secondary" id="saveContinueBtn">記録して続けて入力</button>` }
       </div>
     </div>`;
 }
@@ -569,7 +572,8 @@ function bindRecord(){
   };
   qs('#dateInput').onchange = e=>{ STATE.recordForm.date = e.target.value || todayISO(); };
   qs('#memoInput').oninput   = e=>{ STATE.recordForm.memo = e.target.value; };
-  qs('#saveBtn').onclick     = saveRecord;
+  qs('#saveBtn').onclick     = ()=> saveRecord(false);
+  const cont = qs('#saveContinueBtn'); if(cont) cont.onclick = ()=> saveRecord(true);
   const del = qs('#deleteBtn'); if(del) del.onclick = ()=> deleteRecord(STATE.recordForm.editingId);
   updatePreview();
 }
@@ -625,7 +629,9 @@ function updatePreview(){
     ${banners}`;
 }
 
-function saveRecord(){
+// continueEntry=true のときは保存後もフォームに留まり、直前の入力
+// （サービス・還元率・日付）を引き継いで続けて入力できるようにする。
+function saveRecord(continueEntry){
   const f = STATE.recordForm;
   const amount = Number(f.amount) || 0;
   if(!f.service){ toast('決済サービスを選択してください'); return; }
@@ -636,12 +642,22 @@ function saveRecord(){
     if(p){ p.service=f.service; p.amount=amount; p.rate=f.rate; p.date=f.date; p.memo=f.memo.trim(); }
     const ok = commit();
     STATE.tab = 'history'; render(); if(ok) toast('更新しました');
+    return;
+  }
+
+  DATA.payments.push({
+    id:genId('p'), userId:DATA.activeUserId, service:f.service,
+    amount, rate:f.rate, date:f.date, memo:f.memo.trim(), grantedAmount:0,
+  });
+  const ok = commit();
+
+  if(continueEntry){
+    // 金額とメモのみ空にし（サービス・還元率・日付は引き継ぐ）、記録タブに留まって金額入力へフォーカス
+    STATE.recordForm = { ...newForm(), service:f.service, rate:f.rate, date:f.date };
+    render();
+    qs('#amountInput')?.focus();
+    if(ok) toast('記録しました。続けて入力できます');
   }else{
-    DATA.payments.push({
-      id:genId('p'), userId:DATA.activeUserId, service:f.service,
-      amount, rate:f.rate, date:f.date, memo:f.memo.trim(), grantedAmount:0,
-    });
-    const ok = commit();
     STATE.recordForm = newForm();
     STATE.tab = 'home'; render(); if(ok) toast('記録しました');
   }
