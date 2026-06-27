@@ -48,7 +48,8 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-// fetch して成功応答（2xx）のみキャッシュ更新する。応答はそのまま返す（失敗時は例外）。
+// fetch して成功応答（2xx）のみキャッシュ更新する。応答（非2xx含む）はそのまま返し、
+// ネットワーク失敗時のみ例外を投げる（呼び出し側がオフラインとしてフォールバックする）。
 async function fetchAndCache(req, cache) {
   const res = await fetch(req);
   if (res && res.ok) cache.put(req, res.clone());
