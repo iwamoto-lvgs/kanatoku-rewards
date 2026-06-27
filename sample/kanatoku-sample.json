@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "activeUserId": "u1",
+  "users": [
+    { "id": "u1", "name": "田中太郎", "avatar": null },
+    { "id": "u2", "name": "佐藤花子", "avatar": null }
+  ],
+  "payments": [
+    {
+      "id": "p01",
+      "userId": "u1",
+      "service": "paypay",
+      "amount": 3000,
+      "rate": 0.2,
+      "date": "2026-06-01",
+      "memo": "スーパーで買い物",
+      "grantedAmount": 600
+    },
+    {
+      "id": "p02",
+      "userId": "u1",
+      "service": "dpay",
+      "amount": 8000,
+      "rate": 0.1,
+      "date": "2026-06-05",
+      "memo": "家電量販店（大手10%）",
+      "grantedAmount": 800
+    },
+    {
+      "id": "p04",
+      "userId": "u1",
+      "service": "paypay",
+      "amount": 5000,
+      "rate": 0.2,
+      "date": "2026-06-10",
+      "memo": "ドラッグストア",
+      "grantedAmount": 1000
+    },
+    {
+      "id": "p05",
+      "userId": "u1",
+      "service": "aupay",
+      "amount": 10000,
+      "rate": 0.2,
+      "date": "2026-06-15",
+      "memo": "1回上限到達（2000→1500）",
+      "grantedAmount": 1500
+    },
+    {
+      "id": "p07",
+      "userId": "u1",
+      "service": "paypay",
+      "amount": 6000,
+      "rate": 0.2,
+      "date": "2026-06-20",
+      "memo": "PayPayサービス上限到達（残枠900）",
+      "grantedAmount": 900
+    },
+    {
+      "id": "p03",
+      "userId": "u2",
+      "service": "rakutenpay",
+      "amount": 2000,
+      "rate": 0.2,
+      "date": "2026-06-03",
+      "memo": "カフェ",
+      "grantedAmount": 400
+    },
+    {
+      "id": "p06",
+      "userId": "u2",
+      "service": "merpay",
+      "amount": 4000,
+      "rate": 0.2,
+      "date": "2026-06-12",
+      "memo": "コンビニ",
+      "grantedAmount": 800
+    },
+    {
+      "id": "p08",
+      "userId": "u2",
+      "service": "aeonpay",
+      "amount": 12000,
+      "rate": 0.1,
+      "date": "2026-06-18",
+      "memo": "イオンモール（大手10%）",
+      "grantedAmount": 1200
+    }
+  ]
+}
