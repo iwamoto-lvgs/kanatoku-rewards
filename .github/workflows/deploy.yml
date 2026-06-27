@@ -1,0 +1,40 @@
+name: Deploy to GitHub Pages
+
+# main にマージされた本番サイトを gh-pages ブランチのルートへ公開する。
+# PR プレビュー（pr-preview/ 配下）は clean-exclude で保持する。
+
+on:
+  push:
+    branches: [main]
+  # 手動でも再実行できるようにする
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 本番デプロイ (gh-pages ルート)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build site
+        run: make build
+
+      - name: Deploy to gh-pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: public
+          # PR プレビュー用ディレクトリは消さずに残す
+          clean: true
+          clean-exclude: |
+            pr-preview/
+          # force push を避け、併走する PR プレビューのコミットを巻き戻さない
+          force: false

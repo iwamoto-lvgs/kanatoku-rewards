@@ -1,0 +1,12 @@
+# ビルド生成物（公開用ディレクトリ）
+/public/
+
+# OS / エディタ
+.DS_Store
+*.swp
+
+# ログ
+*.log
+
+# Node（テスト実行で生成され得るもの）
+node_modules/
