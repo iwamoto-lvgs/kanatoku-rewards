@@ -1,0 +1,32 @@
+{
+  "name": "かなトク進捗管理",
+  "short_name": "かなトク",
+  "description": "かなトク（神奈川県のキャッシュレス還元キャンペーン）の還元上限を決済サービスごとに管理するアプリ。",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#F4F6F9",
+  "theme_color": "#F4F6F9",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
